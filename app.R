@@ -7,6 +7,7 @@ library(openxlsx)
 library(janitor)
 library(tidyverse)
 library(purrr)
+library(DT)
 
 source('src/functions.R', local=T)
 source('src/Mode.R', local=T)
@@ -329,14 +330,35 @@ server <- function(input, output, session) {
   # Display raw or processed data in table based on view type
   output$table_output <- renderDataTable({
     req(input$view_type)
-    if (input$view_type == "raw") {
-      data_in()
-    } else if (input$view_type == "analysis"){
-      # Assuming df_res_labelled_reactive is defined somewhere in your code
-      df_res_labelled_reactive()
-    } else if (input$view_type == "aggregated"){
-      df_aggregated_react()
-    }
+    
+    # Determine which dataset to display based on view type
+    table_data <- switch(input$view_type,
+                         "raw" = data_in(),
+                         "analysis" = df_res_labelled_reactive(),
+                         "aggregated" = df_aggregated_react())
+    
+    # Render DataTable with enhanced features
+    datatable(table_data,
+              options = list(
+                scrollX = TRUE,                   # Enable horizontal scrolling
+                scrollY = "500px",                # Set a fixed height for vertical scrolling
+                paging = TRUE,                    # Enable pagination
+                pageLength = -1,                  # Display all rows (infinite)
+                searching = TRUE,                 # Enable search bar
+                dom = 'Bfrtip',                  # Include buttons and filter
+                buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),  # Add export options
+                initComplete = JS("function(settings, json) {",
+                                  "$('.dataTables_filter').css({'float': 'none', 'text-align': 'right'});",  # Align search bar
+                                  "$('.dataTables_length').css({'float': 'none', 'text-align': 'right'});",  # Align length selection
+                                  "$('.dataTables_info').css({'float': 'none', 'text-align': 'right'});",   # Align info
+                                  "}")
+              ),
+              filter = 'top'                     # Place filters above each column header
+    ) %>%
+      formatStyle(  # Make the table visually appealing
+        columns = names(table_data),  # Apply to all columns
+        backgroundColor = styleEqual("highlight", "yellow")  # Example style
+      )
   })
   
   # Display summary statistics for selected variables
