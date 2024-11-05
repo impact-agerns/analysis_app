@@ -12,6 +12,7 @@ source('src/functions.R', local=T)
 source('src/Mode.R', local=T)
 source('src/process_data_for_aggregation.R', local=T)
 source('src/aggregate_data.R', local=T)
+options(shiny.maxRequestSize = 30 * 1024^2) # 10 MB limit
 
 # UI
 ui <- dashboardPage(
@@ -29,18 +30,35 @@ ui <- dashboardPage(
     tabItems(
       tabItem(tabName = "home",
               fluidRow(
-                box(fileInput("data_file", "Upload Data File (xlsx)", accept = ".xlsx")),
-                box(fileInput("kobo_file", "Upload Kobo Tool File (xlsx)", accept = ".xlsx"))
+                box(title =, 
+                     tags$div(
+                       tags$h4("Import dataset"),
+                       tags$h5(style = "color: gray;", "Data should be cleaned before importing.")
+                       ),
+                  fileInput("data_file", "Upload Data File (xlsx)", accept = ".xlsx")),
+                box(title =, 
+                    tags$div(
+                      tags$h4("Import kobo file"),
+                      tags$h5(style = "color: gray;", "Hint: Make sure `label::English` is specified correctly in survey & choice sheet.")
+                    ),
+                    fileInput("kobo_file", "Upload Kobo Tool File (xlsx)", accept = ".xlsx"))
               ),
-              box(
-                title = "1. Data aggregation",
+                box(title =, 
+                    tags$div(
+                      tags$h4("1. Data aggregation"),
+                      tags$h5(style = "color: gray;", "Pick all variables relevant for aggregation (i.e. admin1, admin2, admin3)")
+                    ),
                 selectInput("aggregation_option", "Choose Aggregation level", 
                             choices = c("Aggregate data by" = "aggregate", "Leave data at KI level" = "no_aggregate")),
                 uiOutput("aggregation_vars_ui"),
                 actionButton("run_aggregation", "Run Aggregation"),
                 verbatimTextOutput("aggregation_status")
               ),
-              box(title = "2. Analysis of for reporting",
+              box(title =, 
+                  tags$div(
+                    tags$h4("2. Analysis of data for reporting"),
+                    tags$h5(style = "color: gray;", "If data aggregated pick one of the aggregation variables.")
+                  ),
                   selectInput("disaggregate_by", "Choose Analysis Level", choices = NULL, multiple = TRUE),
                   actionButton("run_analysis", "Run Analysis"),
                   verbatimTextOutput("analysis_status"),
@@ -78,8 +96,15 @@ server <- function(input, output, session) {
     req(input$data_file)
     
     tryCatch({
-      data <- read_excel(input$data_file$datapath)
+      data <- read_excel(input$data_file$datapath, sheet=1)
       data_in(data)
+      
+      data_source_reactive <<- reactive({
+        data
+      })
+      # Debug: Print names of data to confirm data is read correctly
+      print("Data successfully loaded:")
+      print(names(data))
       
       # Update disaggregation choices
       updateSelectInput(session, "disaggregate_by", choices = names(data), selected = NULL)
@@ -87,7 +112,18 @@ server <- function(input, output, session) {
       showNotification(paste("Error loading data:", e$message), type = "error")
     })
   })
-  
+  # Ensure data_in is not NULL before attempting to rename columns
+  observeEvent(data_in(), {
+    req(data_in())  # Only proceed if data_in is not NULL
+    
+    # Retrieve the data, modify column names, and reset data_in
+    data <- data_in()
+    names(data) <- str_replace_all(names(data), "/", ".")
+    print("okay this worked finally!")
+    # Update the modified data back into data_in
+    data_in(data)
+    print('data is in reactive data_in')
+  })
   kobo_tool <- reactive({
     req(input$kobo_file)
     read_xlsx(input$kobo_file$datapath)
@@ -112,29 +148,30 @@ server <- function(input, output, session) {
         showNotification("Please select at least one variable for aggregation.", type = "error")
         return()
       }
-      
+      #
       survey <- read_xlsx(input$kobo_file$datapath, guess_max = 50000, na = c("NA","#N/A",""," ","N/A"), sheet = 'survey')
       choices <- read_xlsx(input$kobo_file$datapath, guess_max = 50000, na = c("NA","#N/A",""," ","N/A"), sheet = 'choices')
-      
+      print('loaded survey data successfully!')
       # Combine the survey and choices
       tool.combined <- combine_tool(survey = survey, responses = choices)
-      
+      print('tool.combined created')
       # Process column names for aggregation
       col.sm <- tool.combined %>% filter(q.type == "select_multiple") %>% pull(name) %>% unique()
       col.so <- tool.combined %>% filter(q.type == "select_one") %>% pull(name) %>% unique()
       col.int <- survey %>% filter(type == "integer") %>% pull(name) %>% unique()
       col.text <- survey %>% filter(type=="text") %>% pull(name) %>% unique
       
-      if (length(col.so)<=1){
+      if (length(col.sm)<=1){
         print("Check if label column is specified correctly in combine_tool function")
-        stop("No select_one questions found in the tool")
-      }else(print("Select one questions found in the tool"))
+        stop("No select_multiple questions found in the tool")
+      }else(print("Select multiple questions found in the tool"))
       
       if (any(str_detect(names(data_in()), "/"))){
         sm_separator <-  "/"
         if (sm_separator == "/"){
-          print("The separator is not /")
-          names(data) <- str_replace_all(names(data_in()), "/", ".")
+          print("The separator is /")
+          names(data_in()) <- str_replace_all(names(data_in()), "/", ".")
+          print("Separator has been replaced to .") 
         }
         
       } else if (any(str_detect(names(data_in()), "."))){
@@ -148,12 +185,23 @@ server <- function(input, output, session) {
       
       data_cleaned <- process_data_for_aggregation(data_in(), replace_vec_na = vedelete)
       print('processed data for aggregation')
-      aok_aggregated <- aggregate_data(data_cleaned, agg_vars, col_so = col.so, col_sm = col.sm, col_int = col.int, col_text = col.text)
       
+      req(data_cleaned, agg_vars)  # Ensure these are available
+      
+      tryCatch({
+        aok_aggregated <- aggregate_data(data_cleaned, agg_vars, 
+                                         col_so = col.so, col_sm = col.sm, 
+                                         col_int = col.int, col_text = col.text)
+      
+        data_in(aok_aggregated)
+        df_aggregated_react <<- reactive({ aok_aggregated })
+        
+      }, error = function(e) {
+        showNotification(paste("Error aggregating data:", e$message), type = "error")
+      })      
+      print('aggregated data successfully!')
       # Store aggregated data (add any additional processing)
-      data_in(aok_aggregated)
       
-      df_aggregated_react <<- reactive({ aok_aggregated })
       
       output$aggregation_status <- renderText("Aggregation completed successfully!")
     } else {
@@ -190,6 +238,11 @@ server <- function(input, output, session) {
       # Define disaggregation levels
       # dis <- list("admin2", c("admin2", "admin3"))
       dis <- input$disaggregate_by
+      
+      if (length(dis) == 0) {
+        showNotification("Please select at least one variable for analysis", type = "error")
+        return()
+      }
       
       # Clean expanded data
       clean_expanded <- data_in() %>%
@@ -273,7 +326,6 @@ server <- function(input, output, session) {
   
   
   
-  
   # Display raw or processed data in table based on view type
   output$table_output <- renderDataTable({
     req(input$view_type)
@@ -307,7 +359,7 @@ server <- function(input, output, session) {
     y_var <- sym(input$y_axis)
     
     # Base ggplot object
-    p <- ggplot(data = data.in, aes(x = !!x_var, y = !!y_var))
+    p <- ggplot(data = data_source_reactive(), aes(x = !!x_var, y = !!y_var))
     
     # Conditional layer based on selected plot type
     p <- p + 

@@ -34,10 +34,15 @@ detect.outliers <- function(df=raw, col.n=NULL, method="sd-linear", n.sd=2, n.iq
 }
 
 combine_tool <- function(survey=tool, responses=choices){
-  survey <- survey %>% select( name,type, name, label=`label::english`, any_of(c("label_ar"="label::Arabic", "label_fr"="label::Francais"))) %>%
+  survey <- survey %>% 
+  	select(-matches("^label$", ignore.case = TRUE)) %>% 
+  	rename_with(~ "label", .cols = matches("^label::english$", ignore.case = TRUE)) %>% 
+  select( name,type, name, label, any_of(c("label_ar"="label::Arabic", "label_fr"="label::Francais"))) %>%
   mutate(q.type = lapply(str_split(type, " "), function(x) x[[1]]) %>% unlist, 
            list_name = lapply(str_split(type, " "), function(x) ifelse(length(x)>1, x[[2]], NA)) %>% unlist)
-  survey %>% right_join(responses %>% distinct %>% select(list_name, name.choice=name, label.choice=`label::english`, any_of(c("label.choice_ar"="label::Arabic", "label.choice_fr"="label::Francais"))) %>% 
+  survey %>% right_join(responses %>% distinct %>% 
+  												rename_with(~ "label.choice", .cols = matches("^label::english$", ignore.case = TRUE)) %>% 
+  												select(list_name, name.choice=name, label.choice, any_of(c("label.choice_ar"="label::Arabic", "label.choice_fr"="label::Francais"))) %>% 
                  filter(!if_any(everything(), is.na)), multiple = "all") %>%
     filter(!is.na(name)) %>% bind_rows(survey %>% filter(type=="integer")) %>% distinct()
 }
