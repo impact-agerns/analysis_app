@@ -8,7 +8,6 @@ library(janitor)
 library(tidyverse)
 library(purrr)
 library(DT)
-
 source('src/functions.R', local=T)
 source('src/Mode.R', local=T)
 source('src/process_data_for_aggregation.R', local=T)
@@ -34,7 +33,7 @@ ui <- dashboardPage(
                 box(title =, 
                      tags$div(
                        tags$h4("Import dataset"),
-                       tags$h5(style = "color: gray;", "Data should be cleaned before importing.")
+                       tags$h5(style = "color: gray;", "Data should be cleaned before importing and clean data should be first sheet.")
                        ),
                   fileInput("data_file", "Upload Data File (xlsx)", accept = ".xlsx")),
                 box(title =, 
@@ -343,7 +342,7 @@ server <- function(input, output, session) {
                 scrollX = TRUE,                   # Enable horizontal scrolling
                 scrollY = "500px",                # Set a fixed height for vertical scrolling
                 paging = TRUE,                    # Enable pagination
-                pageLength = -1,                  # Display all rows (infinite)
+                pageLength = 100, # -1 for inifinite                  # Display all rows (infinite)
                 searching = TRUE,                 # Enable search bar
                 dom = 'Bfrtip',                  # Include buttons and filter
                 buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),  # Add export options

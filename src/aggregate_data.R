@@ -1,13 +1,17 @@
 aggregate_data <- function(data, agg_vars, col_so, col_text, col_sm, col_int) {
   # 1. Aggregation for select_one questions (Mode)
   data_agg_so <- data %>%
-    group_by(across(all_of(agg_vars))) %>%
-    summarise(across(all_of(setdiff(col_so, agg_vars)), Mode), .groups = "drop")
+    select(all_of(agg_vars), matches(col_so))%>%
+    group_by(across(all_of(agg_vars))) %>% 
+    mutate(across(matches(col_so), as.character))%>% 
+    summarise(across(matches(col_so), Mode), .groups = "drop")
   
   # 2. Aggregation for select text questions (Mode)
   data_agg_text <- data %>%
-    group_by(across(all_of(agg_vars))) %>%
-    summarise(across(all_of(col_text), Mode), .groups = "drop")
+    select(all_of(agg_vars), matches(col_text))%>%
+    group_by(across(all_of(agg_vars))) %>% 
+    mutate(across(matches(col_text), as.character))%>% 		
+    summarise(across(matches(col_text), Mode), .groups = "drop")
   
   # 3. Aggregation for select_multiple questions (maximum)
   data_agg_sm <- data %>%
@@ -39,3 +43,4 @@ aggregate_data <- function(data, agg_vars, col_so, col_text, col_sm, col_int) {
   
   return(aok_aggregated)
 }
+
