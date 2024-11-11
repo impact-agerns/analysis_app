@@ -52,17 +52,21 @@ ui <- dashboardPage(
                             choices = c("Aggregate data by" = "aggregate", "Leave data at KI level" = "no_aggregate")),
                 uiOutput("aggregation_vars_ui"),
                 actionButton("run_aggregation", "Run Aggregation"),
-                verbatimTextOutput("aggregation_status")
+                verbatimTextOutput("aggregation_status"),
+                downloadButton("download_aggregated_data", "Download Aggregated Data")
               ),
               box(title =, 
                   tags$div(
                     tags$h4("2. Analysis of data for reporting"),
                     tags$h5(style = "color: gray;", "If data aggregated pick one of the aggregation variables.")
                   ),
-                  selectInput("disaggregate_by", "Choose Analysis Level", choices = NULL, multiple = TRUE),
+                  selectInput("disaggregate_by_1", "Choose variables for 1. analysis Level", choices = NULL, multiple = TRUE),
+                  selectInput("disaggregate_by_2", "Choose variables for 2. analysis Level", choices = NULL, multiple = TRUE),
                   actionButton("run_analysis", "Run Analysis"),
                   verbatimTextOutput("analysis_status"),
-                  uiOutput("progress_bar"))
+                  uiOutput("progress_bar"),
+              downloadButton("download_analysis_data", "Download Analysis Data")
+              )
       ),
       
       tabItem(tabName = "table",
@@ -107,7 +111,10 @@ server <- function(input, output, session) {
       print(names(data))
       
       # Update disaggregation choices
-      updateSelectInput(session, "disaggregate_by", choices = names(data), selected = NULL)
+      # updateSelectInput(session, "disaggregate_by", choices = names(data), selected = NULL)
+      updateSelectInput(session, "disaggregate_by_1", choices = names(data), selected = NULL)
+      updateSelectInput(session, "disaggregate_by_2", choices = names(data), selected = NULL)
+      
     }, error = function(e) {
       showNotification(paste("Error loading data:", e$message), type = "error")
     })
@@ -237,7 +244,12 @@ server <- function(input, output, session) {
       
       # Define disaggregation levels
       # dis <- list("admin2", c("admin2", "admin3"))
-      dis <- input$disaggregate_by
+      dis1 <- input$disaggregate_by_1  # Analysis 1 selection
+      dis2 <- input$disaggregate_by_2  # Analysis 2 selection
+      
+      # Combine disaggregations into one list for processing
+      dis <- list(dis1, dis2)      
+      
       
       if (length(dis) == 0) {
         showNotification("Please select at least one variable for analysis", type = "error")
@@ -437,8 +449,62 @@ server <- function(input, output, session) {
     }
   )
   
-  
-  
-}
+  output$download_aggregated_data <- downloadHandler(
+    filename = function() {
+      paste("aggregated_data_", Sys.Date(), ".xlsx", sep = "")
+    },
+    content = function(file) {
+      wb <- createWorkbook()
+      sheet_name <- "Aggregated Data"
+      data_to_write <- df_aggregated_react()  # Reactive expression for aggregated data
+      
+      # Write data to the worksheet
+      addWorksheet(wb, sheet_name)
+      writeData(wb, sheet_name, data_to_write)
+      
+      # Save workbook
+      saveWorkbook(wb, file, overwrite = TRUE)
+    }
+  )
+  # Server-side logic for downloading analysis data
+output$download_analysis_data <- downloadHandler(
+  filename = function() {
+    paste("analysis_data_", Sys.Date(), ".xlsx", sep = "")
+  },
+  content = function(file) {
+    wb <- createWorkbook()
+    sheet_name <- "Analysis Data"
+    data_to_write <- df_res_labelled_reactive()  # Reactive expression for analysis data
+    
+    # Write data to the worksheet
+    addWorksheet(wb, sheet_name)
+    writeData(wb, sheet_name, data_to_write)
+    
+    # Save workbook
+    saveWorkbook(wb, file, overwrite = TRUE)
+  }
+)
+# Server-side logic for downloading analysis data
+output$download_analysis_data <- downloadHandler(
+  filename = function() {
+    paste("analysis_data_", Sys.Date(), ".xlsx", sep = "")
+  },
+  content = function(file) {
+    wb <- createWorkbook()
+    sheet_name <- "Analysis Data"
+    data_to_write <- df_res_labelled_reactive()  # Reactive expression for analysis data
+    
+    # Write data to the worksheet
+    addWorksheet(wb, sheet_name)
+    writeData(wb, sheet_name, data_to_write)
+    
+    # Save workbook
+    saveWorkbook(wb, file, overwrite = TRUE)
+  }
+)
+
+
+
+} # server end
 
 shinyApp(ui, server)

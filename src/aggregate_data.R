@@ -34,13 +34,20 @@ aggregate_data <- function(data, agg_vars, col_so, col_text, col_sm, col_int) {
     group_by(across(all_of(agg_vars))) %>%
     summarise(across(all_of(col_int), ~ mean(as.numeric(na.omit(.)), na.rm = TRUE)), .groups = "drop")
   
+  data_agg_weight_column <- data %>% 
+    group_by(across(all_of(agg_vars))) %>% 
+    mutate(weight = 1) %>% 
+    summarise(weight = sum(weight, na.rm = TRUE), .groups = "drop")
+  
   # Combine all aggregation results into a single data frame
   aok_aggregated <- data_agg_so %>%
     left_join(data_agg_sm, by = agg_vars) %>%
     left_join(data_agg_sm_first, by = agg_vars) %>%
     left_join(data_agg_int, by = agg_vars) %>% 
-    left_join(data_agg_text, by = agg_vars) 
+    left_join(data_agg_text, by = agg_vars) %>% 
+    left_join(data_agg_weight_column, by = agg_vars)
   
   return(aok_aggregated)
 }
+
 
