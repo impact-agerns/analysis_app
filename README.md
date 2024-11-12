@@ -2,8 +2,6 @@
 
 Created by: Global Emergencies Unit - Impact Initiatives.
 
-For any questions contact Alvaro Gerns (alvaro.gerns\@impact-initiatives.org)
-
 The app can be accessed here: <https://impact-initiatives.shinyapps.io/geuki_analysis_app/>
 
 Purpose: The app is intended to simplify and standardize the aggregation and analysis process of Key informant information. It allows a less technical audience to run the app autonomsly. Through the app the data gets transformed into the desired output with very few steps and can then be used for other products.
@@ -45,3 +43,7 @@ Each analysis can be run with multiple variables.
 Example: Analysis using the following variables - admin2, KI-type
 
 In this case the analysis script will set the 2 selected variables as dimensions of the analysis and identify for each distinct combination of the 2 variables all response statistics for all indicators/choices.
+
+<br>
+
+For any questions contact Alvaro Gerns (alvaro.gerns\@impact-initiatives.org)
