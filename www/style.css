@@ -1,0 +1,116 @@
+/* Define REACH Initiative colors */
+:root {
+  --primary-color: #58585A;
+  --secondary-color: #EE5859;
+  --tertiary-color: #D2CBB8;
+  --quaternary-color: #c7c8ca;
+}
+
+/* Universal background color for full screen width */
+body, .container-fluid {
+  background-color: var(--primary-color);
+  margin: 0;
+  padding: 0;
+  color: #ffffff;
+}
+
+/* Override default Shinydashboard styles */
+.skin-blue .main-header .logo {
+  background-color: var(--primary-color);
+}
+
+.skin-blue .main-header .navbar {
+  background-color: var(--primary-color);
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.skin-blue .main-sidebar {
+  background-color: var(--primary-color);
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.skin-blue .sidebar-menu > li > a {
+  color: #ffffff;
+  font-size: 10pt;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.skin-blue .sidebar-menu > li.active > a {
+  background-color: var(--secondary-color);
+  color: #ffffff;
+}
+
+.skin-blue .sidebar-menu > li.header {
+  font-size: 12pt;
+  color: var(--quaternary-color);
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.skin-blue .content-header h1 {
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 14pt;
+  color: var(--primary-color);
+  margin-bottom: 10px;
+}
+
+.skin-blue .content-header .content-subhead {
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 14pt;
+  color: var(--secondary-color);
+  margin-bottom: 10px;
+}
+
+/* Define custom REACH Initiative styles */
+.label {
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 12pt;
+  color: var(--quaternary-color);
+}
+
+/* Style for small boxes */
+.small-box.bg-red, .small-box.bg-yellow { 
+  background-color: #EE5859 !important;
+  color: #000000 !important; 
+}
+
+/* Custom style for valueBox */
+.yellow-value-box {
+  background-color: #D3D3D3;
+  color: white;
+}
+
+.red-value-box {
+  background-color: #EE5859;
+  color: white;
+}
+
+/* Responsive adjustments for plot container */
+.plot-container {
+  width: 100%;
+  padding: 10px;
+}
+
+@media (max-width: 576px) {
+  .plot-container {
+    width: 100%;
+    padding: 5px;
+  }
+}
+
+@media (min-width: 577px) and (max-width: 992px) {
+  .plot-container {
+    width: 90%;
+    margin: auto;
+    padding: 10px;
+  }
+}
+
+@media (min-width: 993px) {
+  .plot-container {
+    width: 80%;
+    margin: auto;
+    padding: 10px;
+  }
+}
+
+

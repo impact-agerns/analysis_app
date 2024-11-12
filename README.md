@@ -1,6 +1,8 @@
 ### Aggregation & Analysis app for KI-level data
 
-Created by: Global Emergencies Unit
+Created by: Global Emergencies Unit - Impact Initiatives.
+
+For any questions contact Alvaro Gerns (alvaro.gerns\@impact-initiatives.org)
 
 The app can be accessed here: <https://impact-initiatives.shinyapps.io/geuki_analysis_app/>
 

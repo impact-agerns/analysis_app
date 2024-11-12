@@ -8,9 +8,36 @@ source('src/aggregate_data.R', local=T)
 options(shiny.maxRequestSize = 30 * 1024^2) # 30 MB limit
 
 # UI
-ui <- dashboardPage(
-  dashboardHeader(title = "Data Processing and Analysis"),
-  
+ui <- shinyUI(
+  fluidPage(
+    tags$head(
+      tags$style(HTML("
+        body, .container-fluid {
+            background-color: white !important; /* Set background for full page */
+            color: black;
+        }
+        .markdown-content {
+            background-color: white;
+            color: black;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        /* Optional: Add padding to the bottom to ensure no cut-off appearance */
+        .container-fluid {
+            padding-bottom: 50px;
+        }
+    "))
+    ),
+    includeCSS("www/style.css"),
+  dashboardPage(
+    dashboardHeader(
+      title = "Data Processing and Analysis",
+      titleWidth = 300,
+      tags$li(
+        class = "dropdown", 
+        tags$img(src = "REACH.png", height = "50px", width = "225px")
+      )
+    ),
   dashboardSidebar(
     sidebarMenu(
       menuItem("Home", tabName = "home", icon = icon("home")),
@@ -23,72 +50,71 @@ ui <- dashboardPage(
     tabItems(
       tabItem(tabName = "analysis",
               fluidRow(
-                box(title =, 
-                     tags$div(
-                       tags$h4("Import dataset"),
-                       tags$h5(style = "color: gray;", "Data should be cleaned before importing and clean data should be first sheet.")
-                       ),
-                  fileInput("data_file", "Upload Data File (xlsx)", accept = ".xlsx")),
-                box(title =, 
+                box(tags$div(
+                      tags$h4("Import dataset", style = "color: var(--primary-color);"),
+                      tags$h5(style = "color: gray;", "Data should be cleaned before importing and clean data should be the first sheet.")
+                    ),
+                    fileInput("data_file", "Upload Data File (xlsx)", accept = ".xlsx")
+                ),
+                box(title = "Kobo File Import", 
                     tags$div(
-                      tags$h4("Import kobo file"),
+                      tags$h4("Import Kobo file", style = "color: var(--tertiary-color);"),
                       tags$h5(style = "color: gray;", "Hint: Make sure `label::English` is specified correctly in survey & choice sheet.")
                     ),
-                    fileInput("kobo_file", "Upload Kobo Tool File (xlsx)", accept = ".xlsx"))
+                    fileInput("kobo_file", "Upload Kobo Tool File (xlsx)", accept = ".xlsx")
+                )
               ),
-                box(title =, 
+              fluidRow(
+                box(title = "Data Aggregation", 
                     tags$div(
-                      tags$h4("1. Data aggregation"),
-                      tags$h5(style = "color: gray;", "Pick all variables relevant for aggregation (i.e. admin1, admin2, admin3)")
+                      tags$h4("1. Data aggregation", style = "color: var(--tertiary-color);"),
+                      tags$h5(style = "color: gray;", "Pick all variables relevant for aggregation (i.e., admin1, admin2, admin3).")
                     ),
-                selectInput("aggregation_option", "Choose Aggregation level", 
-                            choices = c("Aggregate data by" = "aggregate", "Leave data at KI level" = "no_aggregate")),
-                uiOutput("aggregation_vars_ui"),
-                actionButton("run_aggregation", "Run Aggregation"),
-                verbatimTextOutput("aggregation_status"),
-                downloadButton("download_aggregated_data", "Download Aggregated Data")
-              ),
-              box(title =, 
-                  tags$div(
-                    tags$h4("2. Analysis of data for reporting"),
-                    tags$h5(style = "color: gray;", "If data aggregated pick one of the aggregation variables.")
-                  ),
-                  selectInput("disaggregate_by_1", "Choose variables for 1. analysis Level", choices = NULL, multiple = TRUE),
-                  selectInput("disaggregate_by_2", "Choose variables for 2. analysis Level", choices = NULL, multiple = TRUE),
-                  actionButton("run_analysis", "Run Analysis"),
-                  verbatimTextOutput("analysis_status"),
-                  uiOutput("progress_bar"),
-              downloadButton("download_analysis_data", "Download Analysis Data")
+                    selectInput("aggregation_option", "Choose Aggregation level", 
+                                choices = c("Aggregate data by" = "aggregate", "Leave data at KI level" = "no_aggregate")),
+                    uiOutput("aggregation_vars_ui"),
+                    actionButton("run_aggregation", "Run Aggregation"),
+                    verbatimTextOutput("aggregation_status"),
+                    downloadButton("download_aggregated_data", "Download Aggregated Data")
+                ),
+                box(title = "Data Analysis", 
+                    tags$div(
+                      tags$h4("2. Analysis of data for reporting", style = "color: var(--tertiary-color);"),
+                      tags$h5(style = "color: gray;", "If data aggregated, pick one of the aggregation variables.")
+                    ),
+                    selectInput("disaggregate_by_1", "Choose variables for 1. analysis Level", choices = NULL, multiple = TRUE),
+                    selectInput("disaggregate_by_2", "Choose variables for 2. analysis Level", choices = NULL, multiple = TRUE),
+                    actionButton("run_analysis", "Run Analysis"),
+                    verbatimTextOutput("analysis_status"),
+                    uiOutput("progress_bar"),
+                    downloadButton("download_analysis_data", "Download Analysis Data")
+                )
               )
       ),
       tabItem(tabName = "home",
-              column(
-                width = 12,
-                # h2("Documentation"),
-                includeMarkdown("README.md")  # Display the README.md content
-              )
-              ),
-      
-      # tabItem(tabName = "table",
-      #         fluidRow(
-      #           selectInput("view_type", "Data Type", choices = c("Raw Data" = "raw", "Aggregated Data" = "aggregated", "Analysis Data" = "analysis")),
-      #           downloadButton("download_data", "Download Processed Data"),
-      #           dataTableOutput("table_output")
-      #         )
-      # ),
-      
+              fluidRow(column(width = 12,
+                              div(class = "markdown-content", includeMarkdown("README.md"))
+              ))
+      ),
       tabItem(tabName = "plot",
               fluidRow(
-                selectInput("plot_type", "Plot Type", choices = c("Bar Chart" = "bar", "Scatterplot" = "scatter", "Violin Plot" = "violin")),
-                selectInput("x_axis", "X-Axis", choices = NULL),
-                selectInput("y_axis", "Y-Axis", choices = NULL),
-                selectInput("measure", "Measure", choices = c("mean", "count", "median")),
-                plotOutput("plot_output")
+                box(title = "Plot Settings", 
+                    selectInput("plot_type", "Plot Type", choices = c("Bar Chart" = "bar", "Scatterplot" = "scatter", "Violin Plot" = "violin")),
+                    selectInput("x_axis", "X-Axis", choices = NULL),
+                    selectInput("y_axis", "Y-Axis", choices = NULL),
+                    selectInput("measure", "Measure", choices = c("mean", "count", "median"))
+                ),
+                box(title = "Plot Output",
+                    plotOutput("plot_output", height = "500px")
+                )
               )
       )
     )
-  )
+  )# dashboard body
 )
+) # fluid page end
+) # shinyui end
+
 
 server <- function(input, output, session) {
   
