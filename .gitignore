@@ -45,6 +45,8 @@ docs/
 # translation temp files
 po/*~
 
+git rm -r --cached deployment.R
+
 # RStudio Connect folder
 rsconnect/
 app2.R
