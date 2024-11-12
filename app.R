@@ -1,18 +1,11 @@
 # Required Libraries
-library(shiny)
-library(shinydashboard)
-library(dplyr)
-library(readxl)
-library(openxlsx)
-library(janitor)
-library(tidyverse)
-library(purrr)
-library(DT)
+library(pacman)
+p_load(shiny, shinydashboard, dplyr, readxl, openxlsx, janitor, tidyverse, purrr, DT, markdown)
 source('src/functions.R', local=T)
 source('src/Mode.R', local=T)
 source('src/process_data_for_aggregation.R', local=T)
 source('src/aggregate_data.R', local=T)
-options(shiny.maxRequestSize = 30 * 1024^2) # 10 MB limit
+options(shiny.maxRequestSize = 30 * 1024^2) # 30 MB limit
 
 # UI
 ui <- dashboardPage(
@@ -21,14 +14,14 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       menuItem("Home", tabName = "home", icon = icon("home")),
-      menuItem("Table", tabName = "table", icon = icon("table")),
+      menuItem("Analysis", tabName = "analysis", icon = icon("table")),
       menuItem("Plot", tabName = "plot", icon = icon("chart-bar"))
     )
   ),
   
   dashboardBody(
     tabItems(
-      tabItem(tabName = "home",
+      tabItem(tabName = "analysis",
               fluidRow(
                 box(title =, 
                      tags$div(
@@ -68,14 +61,21 @@ ui <- dashboardPage(
               downloadButton("download_analysis_data", "Download Analysis Data")
               )
       ),
-      
-      tabItem(tabName = "table",
-              fluidRow(
-                selectInput("view_type", "Data Type", choices = c("Raw Data" = "raw", "Aggregated Data" = "aggregated", "Analysis Data" = "analysis")),
-                downloadButton("download_data", "Download Processed Data"),
-                dataTableOutput("table_output")
+      tabItem(tabName = "home",
+              column(
+                width = 12,
+                # h2("Documentation"),
+                includeMarkdown("README.md")  # Display the README.md content
               )
-      ),
+              ),
+      
+      # tabItem(tabName = "table",
+      #         fluidRow(
+      #           selectInput("view_type", "Data Type", choices = c("Raw Data" = "raw", "Aggregated Data" = "aggregated", "Analysis Data" = "analysis")),
+      #           downloadButton("download_data", "Download Processed Data"),
+      #           dataTableOutput("table_output")
+      #         )
+      # ),
       
       tabItem(tabName = "plot",
               fluidRow(
@@ -188,7 +188,7 @@ server <- function(input, output, session) {
       
       
       # Example aggregation process (modify as needed)
-      vedelete <- c("dk", "DK", "Not_to_sure", "not_sure")
+      vedelete <- c("dk", "DK", "dnk","Not_to_sure", "not_sure",  "Not_sure", "pnta", "prefer_not_to_answer", "Prefer_not_to_answer")
       
       data_cleaned <- process_data_for_aggregation(data_in(), replace_vec_na = vedelete)
       print('processed data for aggregation')

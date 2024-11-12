@@ -41,11 +41,11 @@ aggregate_data <- function(data, agg_vars, col_so, col_text, col_sm, col_int) {
   
   # Combine all aggregation results into a single data frame
   aok_aggregated <- data_agg_so %>%
+    left_join(data_agg_weight_column, by = agg_vars) %>% 
     left_join(data_agg_sm, by = agg_vars) %>%
     left_join(data_agg_sm_first, by = agg_vars) %>%
     left_join(data_agg_int, by = agg_vars) %>% 
-    left_join(data_agg_text, by = agg_vars) %>% 
-    left_join(data_agg_weight_column, by = agg_vars)
+    left_join(data_agg_text, by = agg_vars) 
   
   return(aok_aggregated)
 }
