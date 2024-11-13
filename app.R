@@ -31,7 +31,7 @@ ui <- shinyUI(
     includeCSS("www/style.css"),
   dashboardPage(
     dashboardHeader(
-      title = "Data Processing and Analysis",
+      title = "KI data analysis",
       titleWidth = 300,
       tags$li(
         class = "dropdown", 
@@ -117,10 +117,10 @@ ui <- shinyUI(
                            tags$h5(style = "color: gray;", "If data aggregated, pick one of the aggregation variables.")
                          ),
                          selectInput("disaggregate_by_1", 
-                                     label = tags$span(style = "color: var(--primary-color);", "Choose variables for Analysis (required)"),  
+                                     label = tags$span(style = "color: var(--primary-color);", "Choose variables for main analysis (required)"),  
                                      choices = NULL, multiple = TRUE),
                          selectInput("disaggregate_by_2", 
-                                     label = tags$span(style = "color: var(--primary-color);", "Choose variables for optional analysis"), 
+                                     label = tags$span(style = "color: var(--primary-color);", "Choose variables for second (optional) analysis"), 
                                      choices = NULL, multiple = TRUE),
                          actionButton("run_analysis", "Run Analysis"),
                          verbatimTextOutput("analysis_status"),
@@ -284,6 +284,9 @@ server <- function(input, output, session) {
     } else {
       output$aggregation_status <- renderText("Data left at KI level. No aggregation performed.")
     }
+    
+    updateSelectInput(session, "agg_vars", selected = input$agg_vars)
+    
   })
   
   # Analysis button functionality
