@@ -1,4 +1,5 @@
 # Required Libraries
+# gc()
 library(pacman)
 p_load(shiny, shinydashboard, dplyr, readxl, openxlsx, janitor, tidyverse, purrr, DT, markdown)
 source('src/functions.R', local=T)
@@ -94,10 +95,11 @@ ui <- shinyUI(
                            tags$h5(style = "color: gray;", "Pick all variables relevant for aggregation (i.e., admin1, admin2, admin3).")
                          ),
                          selectInput("aggregation_option", 
-                                     label = tags$span(style = "color: var(--primary-color);", "Choose variables for aggregation level"), 
-                                     choices = c("Aggregate data by" = "aggregate", "Leave data at KI level" = "no_aggregate")),
+                                     label = tags$span(style = "color: var(--primary-color);", "Do you want to aggregate the data?"), 
+                                     choices = c("Aggregate data" = "aggregate", "Leave data at KI level" = "no_aggregate")),
                          uiOutput("aggregation_vars_ui"),
                          actionButton("run_aggregation", "Run Aggregation"),
+                         # actionButton("reset_aggregation", "Reset Aggregation"),  # Reset button added
                          verbatimTextOutput("aggregation_status"),
                          downloadButton("download_aggregated_data", "Download Aggregated Data")
                        )
@@ -117,12 +119,13 @@ ui <- shinyUI(
                            tags$h5(style = "color: gray;", "If data aggregated, pick one of the aggregation variables.")
                          ),
                          selectInput("disaggregate_by_1", 
-                                     label = tags$span(style = "color: var(--primary-color);", "Choose variables for main analysis (required)"),  
+                                     label = tags$span(style = "color: var(--primary-color);", "Choose variable(s) for main analysis (required)"),  
                                      choices = NULL, multiple = TRUE),
                          selectInput("disaggregate_by_2", 
-                                     label = tags$span(style = "color: var(--primary-color);", "Choose variables for second (optional) analysis"), 
+                                     label = tags$span(style = "color: var(--primary-color);", "Choose variable(s) for second (optional) analysis"), 
                                      choices = NULL, multiple = TRUE),
                          actionButton("run_analysis", "Run Analysis"),
+                         # actionButton("reset_analysis", "Reset Analysis"),  # Reset button added
                          verbatimTextOutput("analysis_status"),
                          uiOutput("progress_bar"),
                          downloadButton("download_analysis_data", "Download Analysis Data")
@@ -162,32 +165,40 @@ ui <- shinyUI(
 
 server <- function(input, output, session) {
   
-  # Reactive variable to store the loaded data
   data_in <- reactiveVal(NULL)
   
   # Observe the data file input
   observeEvent(input$data_file, {
     req(input$data_file)
+    print("File upload initiated.")
+    
+    temp_file_path <- tempfile(fileext = ".xlsx")
+    file.copy(input$data_file$datapath, temp_file_path, overwrite = TRUE)
+    print("File copied to temp path.")
     
     tryCatch({
-      data <- read_excel(input$data_file$datapath, sheet=1)
+      data <- openxlsx::read.xlsx(temp_file_path, sheet = 1, na.strings = c("NA", "#N/A", "", " ", "N/A"), )
+      
+      # data <- readxl::read_excel(temp_file_path, sheet = 1, guess_max = 500, na = c("NA", "#N/A", "", " ", "N/A"))
+      
       data_in(data)
+      print("Data successfully read.")
       
-      data_source_reactive <<- reactive({
-        data
-      })
-      # Debug: Print names of data to confirm data is read correctly
-      print("Data successfully loaded:")
-      print(names(data))
-      
-      # Update disaggregation choices
-      # updateSelectInput(session, "disaggregate_by", choices = names(data), selected = NULL)
-      updateSelectInput(session, "disaggregate_by_1", choices = names(data), selected = NULL)
-      updateSelectInput(session, "disaggregate_by_2", choices = names(data), selected = NULL)
+      str(data)
+      # updateSelectInput(session, "disaggregate_by_1", choices = names(data), selected = NULL)
+      # updateSelectInput(session, "disaggregate_by_2", choices = names(data), selected = NULL)
       
     }, error = function(e) {
+      print(paste("Error loading data:", e$message))
       showNotification(paste("Error loading data:", e$message), type = "error")
     })
+    tryCatch({
+      updateSelectInput(session, "disaggregate_by_1", choices = names(data), selected = NULL)
+      updateSelectInput(session, "disaggregate_by_2", choices = names(data), selected = NULL)
+    }, error = function(e) {
+      showNotification(paste("Error updating input fields:", e$message), type = "error")
+    })
+    
   })
   # Ensure data_in is not NULL before attempting to rename columns
   observeEvent(data_in(), {
@@ -201,6 +212,7 @@ server <- function(input, output, session) {
     data_in(data)
     print('data is in reactive data_in')
   })
+  
   kobo_tool <- reactive({
     req(input$kobo_file)
     read_xlsx(input$kobo_file$datapath)
@@ -210,10 +222,12 @@ server <- function(input, output, session) {
   output$aggregation_vars_ui <- renderUI({
     req(data_in())
     if (input$aggregation_option == "aggregate") {
-      selectInput("agg_vars", "Select Variables to Aggregate By", choices = names(data_in()), multiple = TRUE)
+      selectInput("agg_vars", 
+                  label = tags$span(style = "color: var(--primary-color);",  "Choose variable(s) for aggregation"),
+                  choices = names(data_in()), multiple = TRUE)
     }
   })
-  
+  gc()
   # Run aggregation button functionality
   observeEvent(input$run_aggregation, {
     req(data_in())
@@ -226,8 +240,8 @@ server <- function(input, output, session) {
         return()
       }
       #
-      survey <- read_xlsx(input$kobo_file$datapath, guess_max = 50000, na = c("NA","#N/A",""," ","N/A"), sheet = 'survey')
-      choices <- read_xlsx(input$kobo_file$datapath, guess_max = 50000, na = c("NA","#N/A",""," ","N/A"), sheet = 'choices')
+      survey <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'survey')
+      choices <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'choices')
       print('loaded survey data successfully!')
       # Combine the survey and choices
       tool.combined <- combine_tool(survey = survey, responses = choices)
@@ -289,6 +303,13 @@ server <- function(input, output, session) {
     
   })
   
+  # observeEvent(input$reset_aggregation, {
+  #   updateSelectInput(session, "aggregation_option", selected = "no_aggregate")
+  #   updateSelectInput(session, "agg_vars", selected = NULL)
+  #   data_in(NULL)  # Reset data to original
+  #   output$aggregation_status <- renderText("")  # Clear status
+  # })
+  
   # Analysis button functionality
   # This code snippet integrates progress updates during the processing of data.
   observeEvent(input$run_analysis, {
@@ -297,8 +318,8 @@ server <- function(input, output, session) {
     # Use withProgress to show a progress bar
     withProgress(message = "Running analysis...", {
       # Steps for reading survey and choices from Kobo tool
-      survey <- read_xlsx(input$kobo_file$datapath, guess_max = 50000, na = c("NA","#N/A",""," ","N/A"), sheet = 'survey')
-      choices <- read_xlsx(input$kobo_file$datapath, guess_max = 50000, na = c("NA","#N/A",""," ","N/A"), sheet = 'choices')
+      survey <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'survey')
+      choices <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'choices')
       
       # Combine the survey and choices
       tool.combined <- combine_tool(survey = survey, responses = choices)
@@ -401,8 +422,14 @@ server <- function(input, output, session) {
       output$analysis_status <- renderText("Analysis completed successfully!")
     })
   })
-  
-  
+  # # Reset Analysis functionality
+  # observeEvent(input$reset_analysis, {
+  #   updateSelectInput(session, "disaggregate_by_1", selected = NULL)
+  #   updateSelectInput(session, "disaggregate_by_2", selected = NULL)
+  #   output$analysis_status <- renderText("")  # Clear status
+  #   output$progress_bar <- renderUI(NULL)  # Clear progress bar
+  # })
+  # 
   # Populate column choices for x_axis and y_axis based on uploaded data
   observeEvent(data_in(), {
     choices <- names(data_in())
