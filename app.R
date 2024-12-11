@@ -6,7 +6,8 @@ source('src/functions.R', local=T)
 source('src/Mode.R', local=T)
 source('src/process_data_for_aggregation.R', local=T)
 source('src/aggregate_data.R', local=T)
-options(shiny.maxRequestSize = 30 * 1024^2) # 30 MB limit
+options(shiny.maxRequestSize = 50 * 1024^2) # 30 MB limit
+
 
 # UI
 ui <- shinyUI(
