@@ -47,3 +47,4 @@ In this case the analysis script will set the 2 selected variables as dimensions
 <br>
 
 For any questions contact Alvaro Gerns (alvaro.gerns\@impact-initiatives.org)
+Github repository (https://github.com/agerns/analysis_app)

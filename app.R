@@ -75,7 +75,7 @@ ui <- shinyUI(
                          width = NULL,
                          tags$div(
                            tags$h4("Import Kobo file", style = "color: var(--primary-color);"),
-                           tags$h5(style = "color: gray;", "Important: Kobo tool has to match data. Make sure `label::English` is specified correctly in survey & choice sheet.")
+                           tags$h5(style = "color: gray;", "Important: Kobo tool has to match data. Make sure `label::English (en)` is specified correctly in survey & choice sheet.")
                          ),
                          fileInput("kobo_file", 
                                    label = tags$span(style = "color: var(--primary-color);", "Upload Kobo Tool File (xlsx)"), accept = ".xlsx")
@@ -240,7 +240,12 @@ server <- function(input, output, session) {
         showNotification("Please select at least one variable for aggregation.", type = "error")
         return()
       }
-      #
+      # local run
+      # tool_path <- choose.files(caption ="Please select the tool to create the dummy data.", multi = F)
+      # choices <- read_excel(tool_path, sheet="choices")
+      # survey <- read_excel(tool_path, sheet="survey")
+      # 
+      
       survey <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'survey')
       choices <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'choices')
       print('loaded survey data successfully!')

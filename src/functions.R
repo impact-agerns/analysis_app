@@ -36,13 +36,13 @@ detect.outliers <- function(df=raw, col.n=NULL, method="sd-linear", n.sd=2, n.iq
 combine_tool <- function(survey=tool, responses=choices){
   survey <- survey %>% 
     select(-matches("^label$", ignore.case = TRUE)) %>% 
-    rename_with(~ "label", .cols = matches("^label::english$", ignore.case = TRUE))%>% 
+    rename_with(~ "label", .cols = matches("^label::english", ignore.case = TRUE))%>% 
     select( name,type, name, label, any_of(c("label_ar"="label::Arabic", "label_fr"="label::Francais")))%>%
     mutate(q.type = lapply(str_split(type, " "), function(x) x[[1]]) %>% unlist, 
            list_name = sapply(str_split(type, "\\s+"), function(x) x[2]))
   
   survey %>% right_join(responses %>% distinct %>% 
-                          rename_with(~ "label.choice", .cols = matches("^label::english$", ignore.case = TRUE)) %>% 
+                          rename_with(~ "label.choice", .cols = matches("^label::english", ignore.case = TRUE)) %>% 
                           select(list_name, name.choice=name, label.choice, any_of(c("label.choice_ar"="label::Arabic", "label.choice_fr"="label::Francais"))) 
                         %>% 
                           filter(!if_any(everything(), is.na)), multiple = "all") %>%
