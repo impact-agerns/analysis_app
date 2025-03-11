@@ -97,7 +97,7 @@ for (disag in params$selected_disag_vals) {
 
 
 
-```{r generate_indicator_plots,  results='asis', echo=F, include=F, eval=F}
+```{r generate_indicator_plots,  results='asis', echo=F, eval=T, message=F}
 # Generate plots for Section 2: By Indicator
 # cat("\n# By Indicator2 {#indicator}\n")
 cat("\n## By Indicator {.tabset}\n")
@@ -108,59 +108,17 @@ for (question in params$selected_questions) {
   selected_question <- question
   cat(paste0("\n### ", question, "{.tabset}\n"))  # Each 'disag_val' gets its own tab
   # cat(paste0("\n#### ", selected_question, "\n"))
-  df_filtered <- df %>% filter(label == selected_question) %>% 
-    group_by(disag_val_1, label, choice) %>% 
-    summarise(count = sum(count, na.rm=T), resp = sum(resp, na.rm=T)) %>% 
-    group_by(choice) %>%  # most selected choice
-    mutate(most_chosen = round(sum(count)/sum(resp)*100,1)) %>% 
-    mutate(rank_choices = row_number(most_chosen)) 
-    mutate(percent = case_when(resp==0 ~ 0, T ~ round(count/resp*100,2))) %>% 
-    arrange(desc(percent)) %>% ungroup() 
-  # %>% 
-  #   slice_head(n = 10)  
-  #   
-  #   df_top3 <- data %>%
-  #   filter(label == selected_question) %>%
-  #   group_by(choice, label) %>%
-  #   summarise(count = sum(count, na.rm = TRUE), resp = sum(resp, na.rm = TRUE)) %>%
-  #   mutate(most_chosen = round(count / resp * 100, 1)) %>% ungroup() %>% select(-c(count, resp)) %>% 
-  #   slice_max(most_chosen, n = 3) %>%
-  #   inner_join(data, by = c("choice", "label")) %>%
-  #   filter(is.na(most_chosen)==F) 
-  #   %>% 
-  #   group_by(label, choice) %>%
-  #   slice_max(mean, n = 10)
   
-  if (nrow(plot_data) > 0) {
       cat(paste0("\n#### ", selected_question, "\n"))  # Sub-tab for each question under this 'disag_val'
       
       # Calling the plot functions based on variable type (e.g., categorical or numerical)
-      if (unique(plot_data$q.type) %in% c("select_multiple", "select_one")) {
-        p <- plot.select(df = indicator_data, var = selected_question, n_min=3)
-      } else {
-        p <- plot.int(df = data, df_res = plot_data, var = selected_question, )
-      }
-      
-      print(p)  # Display the plot inside the sub-tab
+      print(plot.ind_comparison(df = data, var = selected_question, n_min=3))
       cat("\n\n")  # Add line breaks for clarity
-    }
-  
-  
-  if (nrow(indicator_data) > 0) {
-    
-     top5 <- indicator_data %>% arrange(desc(mean_val)) %>% head(5)
-    bottom5 <- indicator_data %>% arrange(mean_val) %>% head(5)
-    combined <- bind_rows(top5, bottom5)
-    
-    plots_indicator <- ggplot(combined, aes(x = reorder(disag_val_1, mean_val), y = mean_val, fill = mean_val)) +
-      geom_bar(stat = "identity") +
-      coord_flip() +
-      theme_minimal() +
-      labs(title = paste("Top & Bottom 5 for", question), x = "Disaggregation Level", y = "Mean Percentage")
-    print(plots_indicator)
-    cat("\n\n")  # Add line breaks for clarity
-
-  }
   
 }
+
 ```
+
+
+
+
