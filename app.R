@@ -6,162 +6,11 @@ source('src/functions.R', local=T)
 source('src/Mode.R', local=T)
 source('src/process_data_for_aggregation.R', local=T)
 source('src/aggregate_data.R', local=T)
-options(shiny.maxRequestSize = 50 * 1024^2) # 30 MB limit
+source('src/format.R', local=T)
+source('src/utils.R', local=T)
+options(shiny.maxRequestSize = 100 * 1024^2) # 100 MB limit
 
-
-# UI
-ui <- shinyUI(
-  fluidPage(
-    tags$head(
-      tags$style(HTML("
-        body, .container-fluid {
-            background-color: white !important; /* Set background for full page */
-            color: black;
-        }
-        .markdown-content {
-            background-color: white;
-            color: black;
-            padding: 15px;
-            border-radius: 5px;
-        }
-        /* Optional: Add padding to the bottom to ensure no cut-off appearance */
-        .container-fluid {
-            padding-bottom: 50px;
-        }
-    "))
-    ),
-    includeCSS("www/style.css"),
-  dashboardPage(
-    dashboardHeader(
-      title = "KI data analysis",
-      titleWidth = 300,
-      tags$li(
-        class = "dropdown", 
-        tags$img(src = "REACH.png", height = "50px", width = "225px")
-      )
-    ),
-  dashboardSidebar(
-    sidebarMenu(
-      menuItem("Home", tabName = "home", icon = icon("home")),
-      menuItem("Analysis", tabName = "analysis", icon = icon("table")),
-      menuItem("Plot", tabName = "plot", icon = icon("chart-bar"))
-    )
-  ),
-  
-  dashboardBody(
-    tabItems(
-      tabItem(tabName = "analysis",
-              # First Row: Import Files (side by side)
-              fluidRow(
-                column(width = 6, 
-                       box(
-                         title = NULL,
-                         status = "primary",
-                         solidHeader = TRUE,
-                         width = NULL,
-                         tags$div(
-                           tags$h4("Import dataset", style = "color: var(--primary-color);"),
-                           tags$h5(style = "color: gray;", "Important: Data should be cleaned before importing & clean data should be saved in the first sheet.")
-                         ),
-                         fileInput("data_file", 
-                                   label = tags$span(style = "color: var(--primary-color);", "Upload Data File (xlsx)"), accept = ".xlsx")
-                       )
-                ),
-                column(width = 6, 
-                       box(
-                         title = NULL,
-                         status = "primary",
-                         solidHeader = TRUE,
-                         width = NULL,
-                         tags$div(
-                           tags$h4("Import Kobo file", style = "color: var(--primary-color);"),
-                           tags$h5(style = "color: gray;", "Important: Kobo tool has to match data. Make sure `label::English (en)` is specified correctly in survey & choice sheet.")
-                         ),
-                         fileInput("kobo_file", 
-                                   label = tags$span(style = "color: var(--primary-color);", "Upload Kobo Tool File (xlsx)"), accept = ".xlsx")
-                       )
-                )
-              ),
-              
-              # Second Row: Data Aggregation (spans the entire row)
-              fluidRow(
-                column(width = 12, 
-                       box(
-                         title = NULL,
-                         status = "primary",
-                         solidHeader = TRUE,
-                         width = NULL,
-                         tags$div(
-                           tags$h4("Data aggregation", style = "color: var(--primary-color);"),
-                           tags$h5(style = "color: gray;", "Pick all variables relevant for aggregation (i.e., admin1, admin2, admin3).")
-                         ),
-                         selectInput("aggregation_option", 
-                                     label = tags$span(style = "color: var(--primary-color);", "Do you want to aggregate the data?"), 
-                                     choices = c("Aggregate data" = "aggregate", "Leave data at KI level" = "no_aggregate")),
-                         uiOutput("aggregation_vars_ui"),
-                         actionButton("run_aggregation", "Run Aggregation"),
-                         # actionButton("reset_aggregation", "Reset Aggregation"),  # Reset button added
-                         verbatimTextOutput("aggregation_status"),
-                         downloadButton("download_aggregated_data", "Download Aggregated Data")
-                       )
-                )
-              ),
-              
-              # Third Row: Data Analysis (spans the entire row)
-              fluidRow(
-                column(width = 12, 
-                       box(
-                         title = NULL,
-                         status = "primary",
-                         solidHeader = TRUE,
-                         width = NULL,
-                         tags$div(
-                           tags$h4("Data Analysis", style = "color: var(--primary-color);"),
-                           tags$h5(style = "color: gray;", "If data aggregated, pick one of the aggregation variables.")
-                         ),
-                         selectInput("disaggregate_by_1", 
-                                     label = tags$span(style = "color: var(--primary-color);", "Choose variable(s) for main analysis (required)"),  
-                                     choices = NULL, multiple = TRUE),
-                         selectInput("disaggregate_by_2", 
-                                     label = tags$span(style = "color: var(--primary-color);", "Choose variable(s) for second (optional) analysis"), 
-                                     choices = NULL, multiple = TRUE),
-                         actionButton("run_analysis", "Run Analysis"),
-                         # actionButton("reset_analysis", "Reset Analysis"),  # Reset button added
-                         verbatimTextOutput("analysis_status"),
-                         uiOutput("progress_bar"),
-                         downloadButton("download_analysis_data", "Download Analysis Data")
-                       )
-                )
-              )
-      ),
-      tabItem(tabName = "home",
-              fluidRow(column(width = 12,
-                              div(class = "markdown-content", includeMarkdown("README.md"))
-              ))
-      ),
-      tabItem(tabName = "plot",
-              fluidRow(
-                box(title = "Plot Settings", 
-                    selectInput("plot_type", 
-                                label = tags$span(style = "color: var(--primary-color);",  "Plot Type"),
-                                choices = c("Bar Chart" = "bar", "Scatterplot" = "scatter", "Violin Plot" = "violin")),
-                    selectInput("x_axis", 
-                                label = tags$span(style = "color: var(--primary-color);",  "X-Axis"), choices = NULL),
-                    selectInput("y_axis", 
-                                label = tags$span(style = "color: var(--primary-color);",  "Y-Axis"), choices = NULL),
-                    selectInput("measure", 
-                                label = tags$span(style = "color: var(--primary-color);",  "Measure"),choices = c("mean", "count", "median"))
-                ),
-                box(title = "Plot Output",
-                    plotOutput("plot_output", height = "500px")
-                )
-              )
-      )
-    )
-  )# dashboard body
-)
-) # fluid page end
-) # shinyui end
+ui <- source('ui.R', local=T)
 
 
 server <- function(input, output, session) {
@@ -176,6 +25,17 @@ server <- function(input, output, session) {
     temp_file_path <- tempfile(fileext = ".xlsx")
     file.copy(input$data_file$datapath, temp_file_path, overwrite = TRUE)
     print("File copied to temp path.")
+    
+    # # local:
+    # data_path <- choose.files(caption ="Please select the data path", multi = F)
+    # data_in <-  openxlsx::read.xlsx(data_path, sheet = 1) 
+    
+    # label_name <- 'label::English (en)'
+    
+    # local run
+    # tool_path <- choose.files(caption ="Please select the tool to create the dummy data.", multi = F)
+    # choices <- read_excel(tool_path, sheet="choices")
+    # survey <- read_excel(tool_path, sheet="survey")
     
     tryCatch({
       data <- openxlsx::read.xlsx(temp_file_path, sheet = 1, na.strings = c("NA", "#N/A", "", " ", "N/A"), )
@@ -240,11 +100,9 @@ server <- function(input, output, session) {
         showNotification("Please select at least one variable for aggregation.", type = "error")
         return()
       }
-      # local run
-      # tool_path <- choose.files(caption ="Please select the tool to create the dummy data.", multi = F)
-      # choices <- read_excel(tool_path, sheet="choices")
-      # survey <- read_excel(tool_path, sheet="survey")
-      # 
+      
+      
+      
       
       survey <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'survey')
       choices <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'choices')
@@ -289,7 +147,7 @@ server <- function(input, output, session) {
         aok_aggregated <- aggregate_data(data_cleaned, agg_vars, 
                                          col_so = col.so, col_sm = col.sm, 
                                          col_int = col.int, col_text = col.text)
-      
+        
         data_in(aok_aggregated)
         df_aggregated_react <<- reactive({ aok_aggregated })
         
@@ -351,7 +209,6 @@ server <- function(input, output, session) {
       dis <- list(dis1, dis2)      
       dis <- dis[!sapply(dis, is.null)]
       
-      
       if (length(dis) == 0) {
         showNotification("Please select at least one variable for analysis", type = "error")
         return()
@@ -408,6 +265,9 @@ server <- function(input, output, session) {
         
         print(paste0("Analysis disaggregated by ", d, " done"))
       }
+      
+      
+      
       
       # Combine results
       df_res <- res %>% bind_rows() %>%
@@ -574,44 +434,44 @@ server <- function(input, output, session) {
     }
   )
   # Server-side logic for downloading analysis data
-output$download_analysis_data <- downloadHandler(
-  filename = function() {
-    paste("analysis_data_", Sys.Date(), ".xlsx", sep = "")
-  },
-  content = function(file) {
-    wb <- createWorkbook()
-    sheet_name <- "Analysis Data"
-    data_to_write <- df_res_labelled_reactive()  # Reactive expression for analysis data
-    
-    # Write data to the worksheet
-    addWorksheet(wb, sheet_name)
-    writeData(wb, sheet_name, data_to_write)
-    
-    # Save workbook
-    saveWorkbook(wb, file, overwrite = TRUE)
-  }
-)
-# Server-side logic for downloading analysis data
-output$download_analysis_data <- downloadHandler(
-  filename = function() {
-    paste("analysis_data_", Sys.Date(), ".xlsx", sep = "")
-  },
-  content = function(file) {
-    wb <- createWorkbook()
-    sheet_name <- "Analysis Data"
-    data_to_write <- df_res_labelled_reactive()  # Reactive expression for analysis data
-    
-    # Write data to the worksheet
-    addWorksheet(wb, sheet_name)
-    writeData(wb, sheet_name, data_to_write)
-    
-    # Save workbook
-    saveWorkbook(wb, file, overwrite = TRUE)
-  }
-)
-
-
-
+  output$download_analysis_data <- downloadHandler(
+    filename = function() {
+      paste("analysis_data_", Sys.Date(), ".xlsx", sep = "")
+    },
+    content = function(file) {
+      wb <- createWorkbook()
+      sheet_name <- "Analysis Data"
+      data_to_write <- df_res_labelled_reactive()  # Reactive expression for analysis data
+      
+      # Write data to the worksheet
+      addWorksheet(wb, sheet_name)
+      writeData(wb, sheet_name, data_to_write)
+      
+      # Save workbook
+      saveWorkbook(wb, file, overwrite = TRUE)
+    }
+  )
+  # Server-side logic for downloading analysis data
+  output$download_analysis_data <- downloadHandler(
+    filename = function() {
+      paste("analysis_data_", Sys.Date(), ".xlsx", sep = "")
+    },
+    content = function(file) {
+      wb <- createWorkbook()
+      sheet_name <- "Analysis Data"
+      data_to_write <- df_res_labelled_reactive()  # Reactive expression for analysis data
+      
+      # Write data to the worksheet
+      addWorksheet(wb, sheet_name)
+      writeData(wb, sheet_name, data_to_write)
+      
+      # Save workbook
+      saveWorkbook(wb, file, overwrite = TRUE)
+    }
+  )
+  
+  
+  
 } # server end
 
 shinyApp(ui, server)

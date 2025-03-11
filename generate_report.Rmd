@@ -1,0 +1,166 @@
+---
+title: "Analysis Report"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+params:
+  selected_disag_vals: NULL
+  selected_questions: NULL
+  # selected_disag_vals: "SS0203"
+  # selected_questions: "What are the main problems with water in ${info_settlement_final}?"
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(readxl)
+library(tidyverse)
+source('src/functions.R', local=T)
+source('src/Mode.R', local=T)
+source('src/process_data_for_aggregation.R', local=T)
+source('src/aggregate_data.R', local=T)
+source('src/format.R', local=T)
+source('src/utils.R', local=T)
+# Set global chunk options
+knitr::opts_chunk$set(
+  echo = FALSE,      # Hide code in the output
+  eval = TRUE,       # Ensure all code is executed
+  message = FALSE,   # Suppress messages (e.g., from loading packages)
+  warning = FALSE,   # Suppress warnings in the output
+  results = 'asis',  # Allow raw markdown output (useful for cat())
+  # fig.align = "center", # Center align figures
+  fig.width = 7     # Default figure width
+  # fig.height = 5     # Default figure height
+)
+
+local <- F
+
+
+# Load Data
+data <- read_excel(list.files('input', pattern="analysis_data_test", full.names = TRUE)) 
+# %>% 
+#   mutate(mean = mean * 100) 
+# %>% 
+#     filter(label %in% params$selected_questions, disag_val_1 %in% params$selected_disag_vals)
+
+if (local==T){
+params$selected_disag_vals <- "SS0202"
+params$selected_questions <- "What are the main problems with water in ${info_settlement_final}?"
+
+print(params$selected_disag_vals)
+print(params$selected_questions)
+print(head(data))  # Check if data is being read properly
+
+
+print(unique(data$label))
+print(unique(params$selected_questions))
+
+}
+# Initialize lists to store plots
+plots_disag_val <- list()
+plots_indicator <- list()
+```
+
+```{r Improved plots, results='asis'}
+# Main tabset for 'By Disag-Val' section
+cat("\n## By admin area {.tabset}\n")
+
+# Loop through each 'disag_val'
+for (disag in params$selected_disag_vals) {
+  cat(paste0("\n### ", disag, "{.tabset}\n"))  # Main tab for each 'disag_val'
+  
+  # Create a sub-tabset for questions inside each 'disag_val' tab
+  for (question in params$selected_questions) {
+    selected_question <- question  # Ensure explicit variable assignment
+    plot_data <- data %>% filter(disag_val_1 == disag, label == selected_question)
+
+    if (nrow(plot_data) > 0) {
+      cat(paste0("\n#### ", selected_question, "\n"))  # Sub-tab for each question under this 'disag_val'
+      
+      # Calling the plot functions based on variable type (e.g., categorical or numerical)
+      if (unique(plot_data$q.type) %in% c("select_multiple", "select_one")) {
+        p <- plot.select(df = plot_data, var = selected_question, n_min=100)
+      } else {
+        p <- plot.int(df = data, df_res = plot_data, var = selected_question, )
+      }
+      
+      print(p)  # Display the plot inside the sub-tab
+      cat("\n\n")  # Add line breaks for clarity
+    }
+  }
+}
+```
+
+
+
+```{r generate_indicator_plots,  results='asis', echo=F, include=F, eval=F}
+# Generate plots for Section 2: By Indicator
+# cat("\n# By Indicator2 {#indicator}\n")
+cat("\n## By Indicator {.tabset}\n")
+
+# cat("\n### {.tabset}\n")
+
+for (question in params$selected_questions) {
+  selected_question <- question
+  cat(paste0("\n### ", question, "{.tabset}\n"))  # Each 'disag_val' gets its own tab
+  # cat(paste0("\n#### ", selected_question, "\n"))
+  df_filtered <- df %>% filter(label == selected_question) %>% 
+    group_by(disag_val_1, label, choice) %>% 
+    summarise(count = sum(count, na.rm=T), resp = sum(resp, na.rm=T)) %>% 
+    group_by(choice) %>%  # most selected choice
+    mutate(most_chosen = round(sum(count)/sum(resp)*100,1)) %>% 
+    mutate(rank_choices = row_number(most_chosen)) 
+    mutate(percent = case_when(resp==0 ~ 0, T ~ round(count/resp*100,2))) %>% 
+    arrange(desc(percent)) %>% ungroup() 
+  # %>% 
+  #   slice_head(n = 10)  
+  #   
+  #   df_top3 <- data %>%
+  #   filter(label == selected_question) %>%
+  #   group_by(choice, label) %>%
+  #   summarise(count = sum(count, na.rm = TRUE), resp = sum(resp, na.rm = TRUE)) %>%
+  #   mutate(most_chosen = round(count / resp * 100, 1)) %>% ungroup() %>% select(-c(count, resp)) %>% 
+  #   slice_max(most_chosen, n = 3) %>%
+  #   inner_join(data, by = c("choice", "label")) %>%
+  #   filter(is.na(most_chosen)==F) 
+  #   %>% 
+  #   group_by(label, choice) %>%
+  #   slice_max(mean, n = 10)
+  
+  if (nrow(plot_data) > 0) {
+      cat(paste0("\n#### ", selected_question, "\n"))  # Sub-tab for each question under this 'disag_val'
+      
+      # Calling the plot functions based on variable type (e.g., categorical or numerical)
+      if (unique(plot_data$q.type) %in% c("select_multiple", "select_one")) {
+        p <- plot.select(df = indicator_data, var = selected_question, n_min=3)
+      } else {
+        p <- plot.int(df = data, df_res = plot_data, var = selected_question, )
+      }
+      
+      print(p)  # Display the plot inside the sub-tab
+      cat("\n\n")  # Add line breaks for clarity
+    }
+  
+  
+  if (nrow(indicator_data) > 0) {
+    
+     top5 <- indicator_data %>% arrange(desc(mean_val)) %>% head(5)
+    bottom5 <- indicator_data %>% arrange(mean_val) %>% head(5)
+    combined <- bind_rows(top5, bottom5)
+    
+    plots_indicator <- ggplot(combined, aes(x = reorder(disag_val_1, mean_val), y = mean_val, fill = mean_val)) +
+      geom_bar(stat = "identity") +
+      coord_flip() +
+      theme_minimal() +
+      labs(title = paste("Top & Bottom 5 for", question), x = "Disaggregation Level", y = "Mean Percentage")
+    print(plots_indicator)
+    cat("\n\n")  # Add line breaks for clarity
+
+  }
+  
+}
+```
