@@ -17,6 +17,33 @@ server <- function(input, output, session) {
   
   data_in <- reactiveVal(NULL)
   
+  survey_data <- reactiveVal(NULL)
+  choices_data <- reactiveVal(NULL)
+
+  dis_global <- reactiveVal(NULL)
+  
+  analysis_data_out <- reactiveVal(NULL)
+  
+  observeEvent(input$kobo_file,{
+    req(input$kobo_file)
+    
+    tryCatch({
+      # Read both sheets and store them in the reactive values
+      survey_data(read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'survey'))
+      choices_data(read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'choices'))
+      
+      print('kobo is read and active')
+      # updateSelectInput(session, "disaggregate_by_1", choices = names(data), selected = NULL)
+      # updateSelectInput(session, "disaggregate_by_2", choices = names(data), selected = NULL)
+      
+    }, error = function(e) {
+      print(paste("Error loading kobo:", e$message))
+      showNotification(paste("Error loading kobo:", e$message), type = "error")
+    })
+    
+    
+  })
+  
   # Observe the data file input
   observeEvent(input$data_file, {
     req(input$data_file)
@@ -24,6 +51,8 @@ server <- function(input, output, session) {
     
     temp_file_path <- tempfile(fileext = ".xlsx")
     file.copy(input$data_file$datapath, temp_file_path, overwrite = TRUE)
+    cat(temp_file_path)
+    # cat(input$data_file$datapath)
     print("File copied to temp path.")
     
     # # local:
@@ -45,7 +74,7 @@ server <- function(input, output, session) {
       data_in(data)
       print("Data successfully read.")
       
-      str(data)
+      # str(data)
       # updateSelectInput(session, "disaggregate_by_1", choices = names(data), selected = NULL)
       # updateSelectInput(session, "disaggregate_by_2", choices = names(data), selected = NULL)
       
@@ -74,10 +103,10 @@ server <- function(input, output, session) {
     print('data is in reactive data_in')
   })
   
-  kobo_tool <- reactive({
-    req(input$kobo_file)
-    read_xlsx(input$kobo_file$datapath)
-  })
+  # kobo_tool <- reactive({
+  #   req(input$kobo_file)
+  #   read_xlsx(input$kobo_file$datapath)
+  # })
   
   # UI output for aggregation variables
   output$aggregation_vars_ui <- renderUI({
@@ -101,20 +130,19 @@ server <- function(input, output, session) {
         return()
       }
       
+      # survey <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'survey')
+      # choices <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'choices')
+      # print(head(survey_data()))
       
-      
-      
-      survey <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'survey')
-      choices <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'choices')
       print('loaded survey data successfully!')
       # Combine the survey and choices
-      tool.combined <- combine_tool(survey = survey, responses = choices)
+      tool.combined <- combine_tool(survey = survey_data(), responses =  choices_data())
       print('tool.combined created')
       # Process column names for aggregation
       col.sm <- tool.combined %>% filter(q.type == "select_multiple") %>% pull(name) %>% unique()
       col.so <- tool.combined %>% filter(q.type == "select_one") %>% pull(name) %>% unique()
-      col.int <- survey %>% filter(type == "integer") %>% pull(name) %>% unique()
-      col.text <- survey %>% filter(type=="text") %>% pull(name) %>% unique
+      col.int <- survey_data() %>% filter(type == "integer") %>% pull(name) %>% unique()
+      col.text <- survey_data() %>% filter(type=="text") %>% pull(name) %>% unique
       
       if (length(col.sm)<=1){
         print("Check if label column is specified correctly in combine_tool function")
@@ -182,16 +210,18 @@ server <- function(input, output, session) {
     # Use withProgress to show a progress bar
     withProgress(message = "Running analysis...", {
       # Steps for reading survey and choices from Kobo tool
-      survey <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'survey')
-      choices <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'choices')
+      # survey <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'survey')
+      # choices <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'choices')
       
+      survey <- survey_data()
+      choices <- choices_data()
       # Combine the survey and choices
-      tool.combined <- combine_tool(survey = survey, responses = choices)
+      tool.combined <- combine_tool(survey = survey_data(), responses = choices_data())
       
       # Process column names for aggregation
       col.sm <- tool.combined %>% filter(q.type == "select_multiple") %>% pull(name) %>% unique()
       col.so <- tool.combined %>% filter(q.type == "select_one") %>% pull(name) %>% unique()
-      col.int <- survey %>% filter(type == "integer") %>% pull(name) %>% unique()
+      col.int <- survey_data() %>% filter(type == "integer") %>% pull(name) %>% unique()
       
       # Check if select_one questions are found
       if (length(col.so) <= 1) {
@@ -208,6 +238,9 @@ server <- function(input, output, session) {
       # Combine disaggregations into one list for processing
       dis <- list(dis1, dis2)      
       dis <- dis[!sapply(dis, is.null)]
+      
+      dis_global(dis)
+      
       
       if (length(dis) == 0) {
         showNotification("Please select at least one variable for analysis", type = "error")
@@ -265,10 +298,7 @@ server <- function(input, output, session) {
         
         print(paste0("Analysis disaggregated by ", d, " done"))
       }
-      
-      
-      
-      
+
       # Combine results
       df_res <- res %>% bind_rows() %>%
         select(any_of(c("disag_var_1", "disag_val_1", "disag_var_2", "disag_val_2")), everything())
@@ -284,10 +314,134 @@ server <- function(input, output, session) {
       # Output the results in the main panel
       df_res_labelled_reactive <<- reactive({ df_res_labelled })
       
+      analysis_data_out(df_res_labelled)
+      
       # Success message
       output$analysis_status <- renderText("Analysis completed successfully!")
     })
   })
+  
+  
+  #### RUN Data Exploration
+  filtered_disag_var_1 <- reactive({
+    req(input$filter_disag_var_1)
+    analysis_data_out() %>% filter(disag_var_1 == input$filter_disag_var_1)
+  })
+  
+  observe({
+    analysis_data <- analysis_data_out()  # Get the full dataset
+    req(analysis_data)  # Ensure data exists
+    
+    updateSelectInput(session, "filter_disag_var_1", 
+                      choices = unique(analysis_data$disag_var_1), 
+                      selected = unique(analysis_data$disag_var_1)[1])
+    
+    updateSelectInput(session, "report_disag_var",
+                      choices = unique(analysis_data$disag_var_1),
+                      selected = unique(analysis_data$disag_var_1)[1])
+  })
+  
+  rep_filtered_data <- reactive({
+    req(input$report_disag_var)
+    analysis_data_out() %>% filter(disag_var_1 == input$report_disag_var)
+  })
+  
+  
+  
+  observe({
+    updateSelectInput(session, "filter_disag_val_1", choices = unique(filtered_disag_var_1()$disag_val_1))
+    updateSelectInput(session, "selected_question", choices = unique(analysis_data_out()$label), selected = unique(analysis_data_out()$label)[1])
+    updateSelectInput(session, "report_disag_val", choices = unique(rep_filtered_data()$disag_val_1))
+    updateSelectInput(session, "report_questions", choices = unique(analysis_data_out()$label))
+  })
+  
+  basic_plot_exploration <- reactive({
+    req(input$selected_question, input$filter_disag_val_1)
+    
+    # Filter data for selected question and selected disag_val_1 values
+    data_filtered <- analysis_data_out() %>% 
+      filter(label == input$selected_question, disag_val_1 %in% input$filter_disag_val_1) %>%
+      # filter(label ==selected_question, disag_val_1 %in% params$selected_disag_vals) %>%
+      group_by(choice) %>% 
+      mutate(total_percentage = sum(mean)) %>% ungroup() %>% 
+      arrange(desc(total_percentage), desc(mean))
+    
+    resp_sum <- data_filtered %>% select(disag_val_1, resp) %>% unique() %>% pull(resp) %>% sum()
+    
+    # Create stacked bar plot
+    p <- ggplot(data_filtered, aes(x = reorder(label.choice, total_percentage), y = mean, fill = disag_val_1)) +
+      geom_bar(stat = "identity", position = "stack") +
+      scale_fill_manual(values = RColorBrewer::brewer.pal(n = length(unique(data_filtered$disag_val_1)), "Set1")) +
+      scale_x_discrete(labels = ~str_wrap(., width = 60)) +
+      scale_y_continuous(labels = scales::percent_format(), limits = c(0, max(data_filtered$total_percentage)+0.02)) +
+      labs(x = "", y = "% of respondents", fill = "Area",
+           title = paste0("\n", str_wrap(unique(data_filtered$label), width = 65), "\n\n"),
+           caption = paste0(resp_sum, " respondents answered the question.")) +
+      theme_minimal() + coord_flip() +
+      theme(plot.subtitle = element_text(size = 9),
+            panel.grid = element_blank(),
+            axis.text.x = element_blank())+
+      geom_text(aes(label = ifelse(count > 0, 
+                                   ifelse(mean > 0.09, 
+                                          paste0(round(mean * 100, 0), "% (", count, ")"),
+                                          paste0(round(mean * 100, 0), "%")), 
+                                   "")),             position = position_stack(vjust = 0.5), size = 3, color = "white")
+    p
+  })
+  
+  output$basic_plot_exploration <- renderPlot({
+    basic_plot_exploration()
+    
+  })
+  
+  output$download_plot <- downloadHandler(
+    filename = function() { paste("plot_", Sys.Date(), ".png", sep = "") },
+    content = function(file) {
+      # Use the plot directly from renderPlot
+      ggsave(file, plot = basic_plot_exploration(), device = "png")
+    }
+  )
+  
+  observeEvent(input$generate_html, {
+    req(input$report_disag_val, input$report_questions)
+    req(analysis_data_out())
+    
+    # Define the file path
+    if (Sys.getenv("SHINY_PORT") != "") {
+      # Running on shinyapps.io → Use temp directory
+      temp_file <- file.path(tempdir(), "analysis_data.rds")
+    } else {
+      # Running locally → Use a local folder
+      temp_file <- "analysis_data.rds"
+    }
+    
+    saveRDS(analysis_data_out(), file = temp_file)
+    
+    
+    rmarkdown::render("generate_report.Rmd", output_file = "analysis_output.html", 
+                      params = list(
+      selected_disag_vals = input$report_disag_val,
+      selected_questions = input$report_questions,
+      data_file = temp_file
+    ))
+  })
+  
+  output$download_html <- downloadHandler(
+    filename = "analysis_output.html",
+    content = function(file) {
+      file.copy("analysis_output.html", file, overwrite = TRUE)
+    }
+  )
+  
+  
+  
+  
+  
+  
+  
+  #### PLOTTING
+  
+  
   # # Reset Analysis functionality
   # observeEvent(input$reset_analysis, {
   #   updateSelectInput(session, "disaggregate_by_1", selected = NULL)

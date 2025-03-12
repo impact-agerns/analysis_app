@@ -8,13 +8,13 @@ output:
 params:
   selected_disag_vals: NULL
   selected_questions: NULL
+  data_file: NULL
+  
 editor_options:
   chunk_output_type: console
 ---
 
 # {.tabset}
-
-
 
 
 ```{r setup, include=FALSE}
@@ -36,15 +36,13 @@ knitr::opts_chunk$set(
   warning = FALSE,   # Suppress warnings in the output
   results = 'asis',  # Allow raw markdown output (useful for cat())
   # fig.align = "center", # Center align figures
-  fig.width = 12,    # Default figure width
+  fig.width = 10,    # Default figure width
   fig.height = 5     # Default figure height
 )
 
-local <- F
 
 
 # Load Data
-data <- read_excel(list.files('input', pattern="analysis_data_test", full.names = TRUE)) 
 
 # test <- data %>% 
 #   filter(str_detect(label, "what are the main reason")) %>% 
@@ -54,8 +52,11 @@ data <- read_excel(list.files('input', pattern="analysis_data_test", full.names 
 #   mutate(mean = mean * 100) 
 # %>% 
 #     filter(label %in% params$selected_questions, disag_val_1 %in% params$selected_disag_vals)
+local <- F
+
 
 if (local==T){
+data <- read_excel(list.files('input', pattern="analysis_data_test", full.names = TRUE)) 
 params <- NULL
 params$selected_disag_vals <- c("SS0202", "SS0103", "SS0102")
 params$selected_questions <- "What are the main problems with water in ${info_settlement_final}?"
@@ -68,6 +69,8 @@ print(head(data))  # Check if data is being read properly
 print(unique(data$label))
 print(unique(params$selected_questions))
 
+}else{
+  data <- readRDS(params$data_file)
 }
 # Initialize lists to store plots
 plots_disag_val <- list()
@@ -150,7 +153,7 @@ for (question in params$selected_questions) {
 ```{r generate_indicator_plots,  results='asis', echo=F, eval=T, message=F}
 # Generate plots for Section 2: By Indicator
 # cat("\n# By Indicator2 {#indicator}\n")
-cat("\n## By indicator x area {.tabset}\n")
+cat("\n## By indicator x Area {.tabset}\n")
 
 # Main script: process data once and loop through questions & choices
 selected_areas <- params$selected_disag_vals

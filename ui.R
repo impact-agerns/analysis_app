@@ -33,7 +33,9 @@ ui <- shinyUI(
         sidebarMenu(
           menuItem("Home", tabName = "home", icon = icon("home")),
           menuItem("Analysis", tabName = "analysis", icon = icon("table")),
-          menuItem("Plot", tabName = "plot", icon = icon("chart-bar"))
+          menuItem("Data exploration", tabName = "data_exploration", icon = icon("dashboard")),
+          menuItem("Generate Report", tabName = "report", icon = icon("file")),
+          menuItem("Plotting", tabName = "plot", icon = icon("chart-bar"))
         )
       ),
       
@@ -145,8 +147,62 @@ ui <- shinyUI(
                         plotOutput("plot_output", height = "500px")
                     )
                   )
+          ),
+          tabItem(tabName = "report",
+                  fluidRow(
+                    column(width = 12, 
+                           box(
+                             title = NULL,
+                             status = "primary",
+                             solidHeader = TRUE,
+                             width = NULL,
+                             tags$div(
+                               tags$h4("Generate Report", style = "color: var(--primary-color);"),
+                               tags$h5(style = "color: gray;", "Select options to generate a customized report.")
+                             ),
+                             selectInput("report_disag_var", 
+                                         label = tags$span(style = "color: var(--primary-color);", "Select Disaggregation Level"), 
+                                         choices = NULL),
+                             selectInput("report_disag_val", 
+                                         label = tags$span(style = "color: var(--primary-color);", "Select Area Values"), 
+                                         choices = NULL, multiple = TRUE),
+                             selectInput("report_questions", 
+                                         label = tags$span(style = "color: var(--primary-color);", "Select Questions"), 
+                                         choices = NULL, multiple = TRUE),
+                             actionButton("generate_html", "Generate HTML Report"),
+                             downloadButton("download_html", "Download HTML Report")
+                           )
+                    )
+                  )
+          ),
+          tabItem(tabName = "data_exploration",
+                  fluidRow(
+                    column(width = 12, 
+                           box(
+                             title = NULL,
+                             status = "primary",
+                             solidHeader = TRUE,
+                             width = NULL,
+                             tags$div(
+                               tags$h4("Data Exploration", style = "color: var(--primary-color);"),
+                               tags$h5(style = "color: gray;", "Select a question and filters to explore the data.")
+                             ),
+                             selectInput("filter_disag_var_1", 
+                                         label = tags$span(style = "color: var(--primary-color);", "Select Disaggregation Level"), 
+                                         choices = NULL),
+                             selectInput("filter_disag_val_1", 
+                                         label = tags$span(style = "color: var(--primary-color);", "Select Area Value"), 
+                                         choices = NULL, multiple = TRUE),
+                             selectInput("selected_question", 
+                                         label = tags$span(style = "color: var(--primary-color);", "Select Question"), 
+                                         choices = NULL),
+                             plotOutput("basic_plot_exploration"),
+                             downloadButton("download_plot", "Download Plot")
+                           )
+                    )
+                  )
           )
-        )
+        ) # tabItems end
       )# dashboard body
     )
   ) # fluid page end
