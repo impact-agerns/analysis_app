@@ -6,6 +6,7 @@ library(readxl)
 library(rmarkdown)
 library(shinyjs)
 library(htmltools)
+library(plotly)
 
 # UI
 ui <- dashboardPage(
@@ -88,21 +89,69 @@ server <- function(input, output, session) {
     updateSelectInput(session, "report_questions", choices = unique(data$label))
   })
   
-  output$basic_plot <- renderPlot({
+  # output$basic_plot <- renderPlot({
+  #   req(input$selected_question, input$filter_disag_val_1)
+  #   data <- analysis_data() %>% filter(label == input$selected_question, disag_val_1 == input$filter_disag_val_1)
+  #   ggplot(data, aes(x = reorder(label.choice, mean), y = mean, fill = disag_val_1)) +
+  #     geom_bar(stat = "identity") +
+  #     coord_flip() +
+  #     theme_minimal()
+  # })
+  
+  basic_plot <- reactive({
     req(input$selected_question, input$filter_disag_val_1)
-    data <- analysis_data() %>% filter(label == input$selected_question, disag_val_1 == input$filter_disag_val_1)
-    ggplot(data, aes(x = reorder(label.choice, mean), y = mean, fill = disag_val_1)) +
-      geom_bar(stat = "identity") +
-      coord_flip() +
-      theme_minimal()
+    
+    # Filter data for selected question and selected disag_val_1 values
+    data_filtered <- data %>% 
+      filter(label == input$selected_question, disag_val_1 %in% input$filter_disag_val_1) %>%
+      # filter(label ==selected_question, disag_val_1 %in% params$selected_disag_vals) %>%
+      group_by(choice) %>% 
+      mutate(total_percentage = sum(mean)) %>% ungroup() %>% 
+      arrange(desc(total_percentage), desc(mean))
+    
+    resp_sum <- data_filtered %>% select(disag_val_1, resp) %>% unique() %>% pull(resp) %>% sum()
+    
+    # Create stacked bar plot
+    p <- ggplot(data_filtered, aes(x = reorder(label.choice, total_percentage), y = mean, fill = disag_val_1)) +
+      geom_bar(stat = "identity", position = "stack") +
+      scale_fill_manual(values = RColorBrewer::brewer.pal(n = length(unique(data_filtered$disag_val_1)), "Set1")) +
+      scale_x_discrete(labels = ~str_wrap(., width = 60)) +
+      scale_y_continuous(labels = scales::percent_format(), limits = c(0, max(data_filtered$total_percentage)+0.02)) +
+      labs(x = "", y = "% of respondents", fill = "Area",
+           title = paste0("\n", str_wrap(unique(data_filtered$label), width = 65), "\n\n"),
+           caption = paste0(resp_sum, " respondents answered the question.")) +
+      theme_minimal() + coord_flip() +
+      theme(plot.subtitle = element_text(size = 9),
+            panel.grid = element_blank(),
+            axis.text.x = element_blank())+
+      geom_text(aes(label = ifelse(count > 0, 
+                                   ifelse(mean > 0.09, 
+                                          paste0(round(mean * 100, 0), "% (", count, ")"),
+                                          paste0(round(mean * 100, 0), "%")), 
+                                   "")),             position = position_stack(vjust = 0.5), size = 3, color = "white")
+    p
+      })
+  
+  output$basic_plot <- renderPlot({
+    basic_plot()
+    
   })
+  
+  # output$download_plot <- downloadHandler(
+  #   filename = function() { paste("plot_", Sys.Date(), ".png", sep = "") },
+  #   content = function(file) {
+  #     ggsave(file, plot = last_plot(), device = "png")
+  #   }
+  # )
   
   output$download_plot <- downloadHandler(
     filename = function() { paste("plot_", Sys.Date(), ".png", sep = "") },
     content = function(file) {
-      ggsave(file, plot = last_plot(), device = "png")
+      # Use the plot directly from renderPlot
+      ggsave(file, plot = basic_plot(), device = "png")
     }
   )
+  
   
   observeEvent(input$generate_html, {
     req(input$report_disag_val, input$report_questions)

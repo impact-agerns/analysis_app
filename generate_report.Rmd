@@ -2,8 +2,8 @@
 title: "Analysis Report"
 output:
   html_document:
-    toc: true
-    toc_float: true
+    toc: false
+    toc_float: false
     theme: flatly
 params:
   selected_disag_vals: NULL
@@ -11,6 +11,11 @@ params:
 editor_options:
   chunk_output_type: console
 ---
+
+# {.tabset}
+
+
+
 
 ```{r setup, include=FALSE}
 library(ggplot2)
@@ -31,7 +36,7 @@ knitr::opts_chunk$set(
   warning = FALSE,   # Suppress warnings in the output
   results = 'asis',  # Allow raw markdown output (useful for cat())
   # fig.align = "center", # Center align figures
-  fig.width = 9,    # Default figure width
+  fig.width = 12,    # Default figure width
   fig.height = 5     # Default figure height
 )
 
@@ -41,10 +46,10 @@ local <- F
 # Load Data
 data <- read_excel(list.files('input', pattern="analysis_data_test", full.names = TRUE)) 
 
-test <- data %>% 
-  filter(str_detect(label, "what are the main reason")) %>% 
-  filter(disag_val_1=="SS0202") %>% 
-  pull(label)
+# test <- data %>% 
+#   filter(str_detect(label, "what are the main reason")) %>% 
+#   filter(disag_val_1=="SS0202") %>% 
+#   pull(label)
 # %>% 
 #   mutate(mean = mean * 100) 
 # %>% 
@@ -52,7 +57,7 @@ test <- data %>%
 
 if (local==T){
 params <- NULL
-params$selected_disag_vals <- "SS0202"
+params$selected_disag_vals <- c("SS0202", "SS0103", "SS0102")
 params$selected_questions <- "What are the main problems with water in ${info_settlement_final}?"
 params$selected_questions <- "For the displaced people who have arrived in ${info_settlement_final}, what are the main reasons that they left their homes?"
 print(params$selected_disag_vals)
@@ -69,7 +74,8 @@ plots_disag_val <- list()
 plots_indicator <- list()
 ```
 
-```{r Improved plots, results='asis'}
+
+```{r Area plots, results='asis'}
 # Main tabset for 'By Disag-Val' section
 cat("\n## By admin area {.tabset}\n")
 
@@ -97,14 +103,16 @@ for (disag in params$selected_disag_vals) {
     }
   }
 }
+
+
 ```
 
 
 
-```{r generate_indicator_plots,  results='asis', echo=F, eval=T, message=F}
+```{r generate_indicator_plots old,  results='asis', echo=F, eval=T, message=F}
 # Generate plots for Section 2: By Indicator
 # cat("\n# By Indicator2 {#indicator}\n")
-cat("\n## By Indicator {.tabset}\n")
+cat("\n## By indicator {.tabset}\n")
 
 # Main script: process data once and loop through questions & choices
 selected_areas <- params$selected_disag_vals
@@ -136,10 +144,40 @@ for (question in params$selected_questions) {
   }
 }
 
-
-
 ```
 
+
+```{r generate_indicator_plots,  results='asis', echo=F, eval=T, message=F}
+# Generate plots for Section 2: By Indicator
+# cat("\n# By Indicator2 {#indicator}\n")
+cat("\n## By indicator x area {.tabset}\n")
+
+# Main script: process data once and loop through questions & choices
+selected_areas <- params$selected_disag_vals
+
+area_data <- data %>% 
+  filter(disag_val_1 %in% selected_areas)
+
+for (question in params$selected_questions) {
+  selected_question <- question
+  cat(paste0("\n### ", question, "{.tabset}\n"))
+  
+  # Process data once for the given question
+     data_filtered <- area_data %>% 
+      # filter(label == input$selected_question, disag_val_1 %in% input$filter_disag_val_1) %>%
+      filter(label ==selected_question, disag_val_1 %in% params$selected_disag_vals) %>%
+      group_by(choice) %>% 
+      mutate(total_percentage = sum(mean)) %>% ungroup() %>% 
+      arrange(desc(total_percentage), desc(mean))
+    
+    resp_sum <- data_filtered %>% select(disag_val_1, resp) %>% unique() %>% pull(resp) %>% sum()
+  
+    print(plot_area_comparison(data_filtered))
+    cat("\n\n")  # Line breaks for clarity
+  
+}
+
+```
 
 
 
