@@ -31,8 +31,8 @@ knitr::opts_chunk$set(
   warning = FALSE,   # Suppress warnings in the output
   results = 'asis',  # Allow raw markdown output (useful for cat())
   # fig.align = "center", # Center align figures
-  fig.width = 7     # Default figure width
-  # fig.height = 5     # Default figure height
+  fig.width = 9,    # Default figure width
+  fig.height = 5     # Default figure height
 )
 
 local <- F
@@ -106,23 +106,6 @@ for (disag in params$selected_disag_vals) {
 # cat("\n# By Indicator2 {#indicator}\n")
 cat("\n## By Indicator {.tabset}\n")
 
-# cat("\n### {.tabset}\n")
-# 
-# selected_indicators <- params$selected_disag_vals
-# 
-# for (question in params$selected_questions) {
-#   selected_question <- question
-#   cat(paste0("\n### ", question, "{.tabset}\n"))  # Each 'disag_val' gets its own tab
-#   # cat(paste0("\n#### ", selected_question, "\n"))
-#   
-#       cat(paste0("\n#### ", selected_question, "\n"))  # Sub-tab for each question under this 'disag_val'
-#       
-#       # Calling the plot functions based on variable type (e.g., categorical or numerical)
-#       print(plot.ind_comparison(df = data, var = selected_question, n_min=3))
-#       cat("\n\n")  # Add line breaks for clarity
-#   
-# }
-
 # Main script: process data once and loop through questions & choices
 selected_areas <- params$selected_disag_vals
 
@@ -147,11 +130,13 @@ for (question in params$selected_questions) {
   for (choosen in unique(df_filtered$choice)) {
     df_choice <- df_filtered %>% filter(choice == choosen)
     
-    cat(paste0("\n#### ", choosen, "\n"))  # Sub-tab for each choice
+    cat(paste0("\n#### ", str_trunc(unique(df_choice$label.choice), 60), "\n"))  # Sub-tab for each choice
     print(plot.ind_comparison(df_choice, choosen))
     cat("\n\n")  # Line breaks for clarity
   }
 }
+
+
 
 ```
 

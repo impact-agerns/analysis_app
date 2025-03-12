@@ -96,7 +96,7 @@ plot.select <- function(df=result_long %>% filter(is.na(disag_var_1), is.na(disa
     plot <- df_filtered %>% ggplot(aes(x=reorder(label.choice,mean), y=mean)) +
       geom_bar(position='dodge', stat='identity', fill="#EE5859")+
       scale_x_discrete(labels=~str_wrap(., width = 60))+
-      scale_y_continuous(labels=scales::percent_format(), limits=c(0,1))+ # to display count only
+      scale_y_continuous(labels=scales::percent_format(), limits=c(0,1.1))+ # to display count only
       labs(x="", y="% of respondents", 
            # title=str_wrap(paste0(unique(df_filtered$label)), width = 65),
            subtitle=paste0("\n", str_wrap(paste0(unique(df_filtered$label) %>% na.omit), width = 65), "\n\n"),
@@ -111,7 +111,7 @@ plot.select <- function(df=result_long %>% filter(is.na(disag_var_1), is.na(disa
       labs(y="% of respondents") + geom_text(aes(y=mean+0.07, label=paste0(round(100*mean, 0), "%")), size=2.5)
       } else {
         plot <- plot + 
-          geom_text(aes(y = mean + 0.05, 
+          geom_text(aes(y = mean + 0.055, 
                         label = ifelse(count > 0, paste0(round(mean * 100, 0), "% (", count, ")"), "")), 
                     size = 2.5)      
         }
@@ -172,6 +172,7 @@ plot.ind_comparison <- function(df_filtered, choosen) {
     return(
       ggplot(df_filtered, aes(x=reorder(disag_val_1, mean), y=mean)) +
         geom_bar(position='dodge', stat='identity', fill="#EE5859") +
+        scale_y_continuous(labels=scales::percent_format(), limits=c(0,1.1))+ # to display count only
         scale_x_discrete(labels = ~str_wrap(., width = 60)) +
         labs(x = "", y = "% of responses", 
              title = str_wrap(paste0(unique(df_filtered$label)), width = 65),

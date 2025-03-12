@@ -21,7 +21,7 @@ ui <- dashboardPage(
       tabItem(tabName = "main",
               fluidRow(
                 column(4, selectInput("filter_disag_var_1", "Select Disaggregation Level:", choices = NULL)),
-                column(4, selectInput("filter_disag_val_1", "Select area value:", choices = NULL)),
+                column(4, selectInput("filter_disag_val_1", "Select area value:", choices = NULL, multiple = T)),
                 column(8, selectInput("selected_question", "Select Question:", choices = NULL))
               ),
               plotOutput("basic_plot"),
@@ -30,7 +30,7 @@ ui <- dashboardPage(
       tabItem(tabName = "report",
               h3("Generate Report"),
               fluidRow(
-                # column(4, selectInput("filter_disag_var_1", "Select Disaggregation Level:", choices = NULL)),
+                column(4, selectInput("report_disag_var", "Select Disaggregation Level:", choices = NULL)),
                 column(4, selectInput("report_disag_val", "Select area values:", choices = NULL, multiple = TRUE)),
                 column(8, selectInput("report_questions", "Select Questions:", choices = NULL, multiple = TRUE))
               ),
@@ -68,16 +68,23 @@ server <- function(input, output, session) {
                       choices = unique(data$disag_var_1), 
                       selected = unique(data$disag_var_1)[1])
     
-    # updateSelectInput(session, "report_disag_var",  
-    #                   choices = unique(data$disag_var_1),  
-    #                   selected = unique(data$disag_var_1)[1])
+    updateSelectInput(session, "report_disag_var",
+                      choices = unique(data$disag_var_1),
+                      selected = unique(data$disag_var_1)[1])
   })
+  
+  rep_filtered_data <- reactive({
+    req(input$report_disag_var)
+    data %>% filter(disag_var_1 == input$report_disag_var)
+  })
+  
+  
   
   observe({
     updateSelectInput(session, "filter_disag_val_1", choices = unique(filtered_data()$disag_val_1), selected = unique(filtered_data()$disag_val_1)[1])
     updateSelectInput(session, "selected_question", choices = unique(data$label), selected = unique(data$label)[1])
     # updateSelectInput(session, "report_disag_var", choices = unique(data$disag_var_1), selected = unique(filtered_data()$disag_val_1)[1])
-    updateSelectInput(session, "report_disag_val", choices = unique(filtered_data()$disag_val_1))
+    updateSelectInput(session, "report_disag_val", choices = unique(rep_filtered_data()$disag_val_1))
     updateSelectInput(session, "report_questions", choices = unique(data$label))
   })
   
