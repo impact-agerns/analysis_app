@@ -355,19 +355,31 @@ server <- function(input, output, session) {
     updateSelectInput(session, "report_questions", choices = unique(analysis_data_out()$label))
   })
   
+  observe({
+    req(analysis_data_out())
+    
+    area_values <- unique(analysis_data_out()$disag_val_1)  # Get unique values
+    
+    updateSelectizeInput(session, "filter_disag_val_1", 
+                         choices = area_values, 
+                         # selected = area_values,  # Select all initially
+                         server = TRUE
+    )
+  })
+  
   basic_plot_exploration <- reactive({
     req(input$selected_question, input$filter_disag_val_1)
-    
+
     # Filter data for selected question and selected disag_val_1 values
-    data_filtered <- analysis_data_out() %>% 
+    data_filtered <- analysis_data_out() %>%
       filter(label == input$selected_question, disag_val_1 %in% input$filter_disag_val_1) %>%
       # filter(label ==selected_question, disag_val_1 %in% params$selected_disag_vals) %>%
-      group_by(choice) %>% 
-      mutate(total_percentage = sum(mean)) %>% ungroup() %>% 
+      group_by(choice) %>%
+      mutate(total_percentage = sum(mean)) %>% ungroup() %>%
       arrange(desc(total_percentage), desc(mean))
-    
+
     resp_sum <- data_filtered %>% select(disag_val_1, resp) %>% unique() %>% pull(resp) %>% sum()
-    
+
     # Create stacked bar plot
     p <- ggplot(data_filtered, aes(x = reorder(label.choice, total_percentage), y = mean, fill = disag_val_1)) +
       geom_bar(stat = "identity", position = "stack") +
@@ -381,13 +393,15 @@ server <- function(input, output, session) {
       theme(plot.subtitle = element_text(size = 9),
             panel.grid = element_blank(),
             axis.text.x = element_blank())+
-      geom_text(aes(label = ifelse(count > 0, 
-                                   ifelse(mean > 0.09, 
+      geom_text(aes(label = ifelse(count > 0,
+                                   ifelse(mean > 0.09,
                                           paste0(round(mean * 100, 0), "% (", count, ")"),
-                                          paste0(round(mean * 100, 0), "%")), 
+                                          paste0(round(mean * 100, 0), "%")),
                                    "")),             position = position_stack(vjust = 0.5), size = 3, color = "white")
     p
   })
+  
+  
   
   output$basic_plot_exploration <- renderPlot({
     basic_plot_exploration()
@@ -397,8 +411,7 @@ server <- function(input, output, session) {
   output$download_plot <- downloadHandler(
     filename = function() { paste("plot_", Sys.Date(), ".png", sep = "") },
     content = function(file) {
-      # Use the plot directly from renderPlot
-      ggsave(file, plot = basic_plot_exploration(), device = "png")
+      ggsave(file, plot = basic_plot_exploration(), device = "png", width = 12, height = 6, units = "in")
     }
   )
   
@@ -450,6 +463,23 @@ server <- function(input, output, session) {
   #   output$progress_bar <- renderUI(NULL)  # Clear progress bar
   # })
   # 
+  # UI element for switching data source
+  # output$data_source_selector <- renderUI({
+  #   selectInput("selected_data_source", 
+  #               "Choose Data Source:", 
+  #               choices = c("Clean/Aggregated Data" = "data_in", "Analyzed Data" = "analysis_data_out"))
+  # })
+  # 
+  # Reactive dataset that switches based on user input
+  # active_data <- reactive({
+  #   if (input$selected_data_source == "data_in") {
+  #     data_in()
+  #   } else {
+  #     analysis_data_out()
+  #   }
+  # })
+  
+  
   # Populate column choices for x_axis and y_axis based on uploaded data
   observeEvent(data_in(), {
     choices <- names(data_in())
@@ -460,38 +490,38 @@ server <- function(input, output, session) {
   
   
   # Display raw or processed data in table based on view type
-  output$table_output <- renderDataTable({
-    req(input$view_type)
+  # output$table_output <- renderDataTable({
+  #   req(input$view_type)
     
     # Determine which dataset to display based on view type
-    table_data <- switch(input$view_type,
-                         "raw" = data_in(),
-                         "analysis" = df_res_labelled_reactive(),
-                         "aggregated" = df_aggregated_react())
+    # table_data <- switch(input$view_type,
+    #                      "raw" = data_in(),
+    #                      "analysis" = df_res_labelled_reactive(),
+    #                      "aggregated" = df_aggregated_react())
     
     # Render DataTable with enhanced features
-    datatable(table_data,
-              options = list(
-                scrollX = TRUE,                   # Enable horizontal scrolling
-                scrollY = "500px",                # Set a fixed height for vertical scrolling
-                paging = TRUE,                    # Enable pagination
-                pageLength = 100, # -1 for inifinite                  # Display all rows (infinite)
-                searching = TRUE,                 # Enable search bar
-                dom = 'Bfrtip',                  # Include buttons and filter
-                buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),  # Add export options
-                initComplete = JS("function(settings, json) {",
-                                  "$('.dataTables_filter').css({'float': 'none', 'text-align': 'right'});",  # Align search bar
-                                  "$('.dataTables_length').css({'float': 'none', 'text-align': 'right'});",  # Align length selection
-                                  "$('.dataTables_info').css({'float': 'none', 'text-align': 'right'});",   # Align info
-                                  "}")
-              ),
-              filter = 'top'                     # Place filters above each column header
-    ) %>%
-      formatStyle(  # Make the table visually appealing
-        columns = names(table_data),  # Apply to all columns
-        backgroundColor = styleEqual("highlight", "yellow")  # Example style
-      )
-  })
+  #   datatable(table_data,
+  #             options = list(
+  #               scrollX = TRUE,                   # Enable horizontal scrolling
+  #               scrollY = "500px",                # Set a fixed height for vertical scrolling
+  #               paging = TRUE,                    # Enable pagination
+  #               pageLength = 100, # -1 for inifinite                  # Display all rows (infinite)
+  #               searching = TRUE,                 # Enable search bar
+  #               dom = 'Bfrtip',                  # Include buttons and filter
+  #               buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),  # Add export options
+  #               initComplete = JS("function(settings, json) {",
+  #                                 "$('.dataTables_filter').css({'float': 'none', 'text-align': 'right'});",  # Align search bar
+  #                                 "$('.dataTables_length').css({'float': 'none', 'text-align': 'right'});",  # Align length selection
+  #                                 "$('.dataTables_info').css({'float': 'none', 'text-align': 'right'});",   # Align info
+  #                                 "}")
+  #             ),
+  #             filter = 'top'                     # Place filters above each column header
+  #   ) %>%
+  #     formatStyle(  # Make the table visually appealing
+  #       columns = names(table_data),  # Apply to all columns
+  #       backgroundColor = styleEqual("highlight", "yellow")  # Example style
+  #     )
+  # })
   
   # Display summary statistics for selected variables
   output$stats_output <- renderTable({
@@ -513,7 +543,7 @@ server <- function(input, output, session) {
     y_var <- sym(input$y_axis)
     
     # Base ggplot object
-    p <- ggplot(data = data_source_reactive(), aes(x = !!x_var, y = !!y_var))
+    p <- ggplot(data = data_in(), aes(x = !!x_var, y = !!y_var))
     
     # Conditional layer based on selected plot type
     p <- p + 
