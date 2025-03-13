@@ -49,6 +49,35 @@ combine_tool <- function(survey=tool, responses=choices){
     filter(!is.na(name)) %>% bind_rows(survey %>% filter(type=="integer")) %>% distinct()
 }
 
+  combine_tool_global_label <- function(survey = tool, responses = choices, label_col) {
+  survey <- survey %>% 
+    select(-matches("^label$", ignore.case = TRUE)) %>% 
+    rename_with(~ "label", .cols = all_of(label_col)) %>%  # Use dynamic label column
+    select(name, type, name, label, any_of(c("label_ar" = "label::Arabic", "label_fr" = "label::Francais"))) %>%
+    mutate(
+      q.type = lapply(str_split(type, " "), function(x) x[[1]]) %>% unlist, 
+      list_name = sapply(str_split(type, "\\s+"), function(x) x[2])
+    )
+  
+  survey %>% 
+    right_join(
+      responses %>% distinct() %>% 
+        rename_with(~ "label.choice", .cols = all_of(label_col)) %>%  # Use dynamic label column
+        select(
+          list_name, 
+          name.choice = name, 
+          label.choice, 
+          any_of(c("label.choice_ar" = "label::Arabic", "label.choice_fr" = "label::Francais"))
+        ) %>%
+        filter(!if_any(everything(), is.na)), 
+      multiple = "all"
+    ) %>%
+    filter(!is.na(name)) %>% 
+    bind_rows(survey %>% filter(type == "integer")) %>% 
+    distinct()
+}
+
+
 check_unique <- function(df=raw, ...){
   tool.combined <- combine_tool(...)
   list.unique <- lapply(df, function(x) str_split(x, " ") %>% unlist %>% unique) %>% keep(names(.) %in% unique(tool.combined$name))

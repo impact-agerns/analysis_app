@@ -24,26 +24,45 @@ server <- function(input, output, session) {
   
   analysis_data_out <- reactiveVal(NULL)
   
-  observeEvent(input$kobo_file,{
+  # Create the reactive value for the label
+  label_global <- reactiveVal(NULL)
+  
+  observeEvent(input$kobo_file, {
     req(input$kobo_file)
     
     tryCatch({
-      # Read both sheets and store them in the reactive values
-      survey_data(read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'survey'))
-      choices_data(read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'choices'))
+      # Read both sheets and store them in reactive values (assume survey_data and choices_data are defined)
+      survey_data(read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA", "#N/A", "", " ", "N/A"), sheet = 'survey'))
+      choices_data(read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA", "#N/A", "", " ", "N/A"), sheet = 'choices'))
       
       print('kobo is read and active')
-      # updateSelectInput(session, "disaggregate_by_1", choices = names(data), selected = NULL)
-      # updateSelectInput(session, "disaggregate_by_2", choices = names(data), selected = NULL)
       
+      # Extract label columns (e.g., those that start with "label::")
+      label_columns <- names(survey_data())[grepl("^lab", names(survey_data()))]
+      
+      # Update the label selector input with a default selection (first label)
+      updateSelectInput(session, "label_selector", 
+                        choices = label_columns, 
+                        selected = label_columns[1])
     }, error = function(e) {
       print(paste("Error loading kobo:", e$message))
       showNotification(paste("Error loading kobo:", e$message), type = "error")
     })
-    
-    
   })
   
+  # Separate observer to update label_global when the label selector changes
+  observeEvent(input$label_selector, {
+    req(input$label_selector)
+    label_global(input$label_selector)
+    
+    if (nchar(label_global()) == 0) {
+      print("label_global is empty!")
+    } else {
+      print(paste("label_global has a value:", label_global()))
+    }
+  })
+  
+
   # Observe the data file input
   observeEvent(input$data_file, {
     req(input$data_file)
@@ -135,8 +154,23 @@ server <- function(input, output, session) {
       # print(head(survey_data()))
       
       print('loaded survey data successfully!')
+      # print('label is:', label_global()) 
+      # print(label_global())
+      # print('did it print?')
+      
+      if (nchar(label_global()) == 0) {
+        print("label_global is empty!")
+      } else {
+        print("label_global has a value.")
+      }
+      # if (is.null(label_global()) || nrow(label_global()) == 0) {
+      #   print("label_global is empty or NULL")
+      # } else {
+      #   print("label_global has a value")
+      # }
       # Combine the survey and choices
-      tool.combined <- combine_tool(survey = survey_data(), responses =  choices_data())
+      print('about to run combine_tool_global')
+      tool.combined <- combine_tool_global_label(survey = survey_data(), responses = choices_data(), label_col=label_global())
       print('tool.combined created')
       # Process column names for aggregation
       col.sm <- tool.combined %>% filter(q.type == "select_multiple") %>% pull(name) %>% unique()
@@ -216,7 +250,7 @@ server <- function(input, output, session) {
       survey <- survey_data()
       choices <- choices_data()
       # Combine the survey and choices
-      tool.combined <- combine_tool(survey = survey_data(), responses = choices_data())
+      tool.combined <- combine_tool_global_label(survey = survey_data(), responses = choices_data(), label_col=label_global())
       
       # Process column names for aggregation
       col.sm <- tool.combined %>% filter(q.type == "select_multiple") %>% pull(name) %>% unique()

@@ -44,36 +44,53 @@ ui <- shinyUI(
           tabItem(tabName = "analysis",
                   # First Row: Import Files (side by side)
                   fluidRow(
-                    column(width = 6, 
+                    column(width = 4, 
                            box(
                              title = NULL,
                              status = "primary",
                              solidHeader = TRUE,
                              width = NULL,
+                             height = 150,
                              tags$div(
                                tags$h4("Import dataset", style = "color: var(--primary-color);"),
-                               tags$h5(style = "color: gray;", "Important: Data should be cleaned before importing & clean data should be saved in the first sheet.")
+                               tags$h5(style = "color: gray;", "Clean data should be saved in the first sheet.")
                              ),
                              fileInput("data_file", 
                                        label = tags$span(style = "color: var(--primary-color);", "Upload Data File (xlsx)"), accept = ".xlsx")
                            )
                     ),
-                    column(width = 6, 
+                    column(width = 4, 
                            box(
                              title = NULL,
                              status = "primary",
                              solidHeader = TRUE,
                              width = NULL,
+                             height = 150,
                              tags$div(
                                tags$h4("Import Kobo file", style = "color: var(--primary-color);"),
-                               tags$h5(style = "color: gray;", "Important: Kobo tool has to match data. Make sure `label::English (en)` is specified correctly in survey & choice sheet.")
+                               tags$h5(style = "color: gray;", "Important: \nKobo tool has to match data.")
                              ),
                              fileInput("kobo_file", 
                                        label = tags$span(style = "color: var(--primary-color);", "Upload Kobo Tool File (xlsx)"), accept = ".xlsx")
                            )
-                    )
-                  ),
-                  
+                    ),
+                    column(width=4,
+                           box(title=NULL,
+                               status="primary",
+                               solidHeader=TRUE,
+                               width=NULL,
+                               height = 150,
+                               tags$div(
+                                 tags$h4("Choose label column", style = "color: var(--primary-color);"),
+                                 tags$h5(style = "color: gray;", "Choose label variable e.g.`label::English (en)`.")
+                               ),
+                               selectInput("label_selector", 
+                                           label = tags$span(style = "color: var(--primary-color);", "Select label variable"), 
+                                           choices = NULL  # Choices will be updated dynamically
+                               )
+                           )
+                  )
+                  ), # fluidrow end
                   # Second Row: Data Aggregation (spans the entire row)
                   fluidRow(
                     column(width = 12, 
