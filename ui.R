@@ -33,9 +33,10 @@ ui <- shinyUI(
         sidebarMenu(
           menuItem("Home", tabName = "home", icon = icon("home")),
           menuItem("Analysis", tabName = "analysis", icon = icon("table")),
-          menuItem("Data exploration", tabName = "data_exploration", icon = icon("dashboard")),
+          menuItem("Analysis Data exploration", tabName = "data_exploration", icon = icon("dashboard")),
           menuItem("Generate Report", tabName = "report", icon = icon("file")),
-          menuItem("Plotting", tabName = "plot", icon = icon("chart-bar"))
+          menuItem("Severity Index", tabName = "index", icon = icon("chart-bar"))
+          # menuItem("Data plotting", tabName = "plot", icon = icon("chart-bar"))
         )
       ),
       
@@ -50,7 +51,7 @@ ui <- shinyUI(
                              status = "primary",
                              solidHeader = TRUE,
                              width = NULL,
-                             height = 150,
+                             height = 180,
                              tags$div(
                                tags$h4("Import dataset", style = "color: var(--primary-color);"),
                                tags$h5(style = "color: gray;", "Clean data should be saved in the first sheet.")
@@ -65,7 +66,7 @@ ui <- shinyUI(
                              status = "primary",
                              solidHeader = TRUE,
                              width = NULL,
-                             height = 150,
+                             height = 180,
                              tags$div(
                                tags$h4("Import Kobo file", style = "color: var(--primary-color);"),
                                tags$h5(style = "color: gray;", "Important: \nKobo tool has to match data.")
@@ -79,7 +80,7 @@ ui <- shinyUI(
                                status="primary",
                                solidHeader=TRUE,
                                width=NULL,
-                               height = 150,
+                               height = 180,
                                tags$div(
                                  tags$h4("Choose label column", style = "color: var(--primary-color);"),
                                  tags$h5(style = "color: gray;", "Choose label variable e.g.`label::English (en)`.")
@@ -224,7 +225,108 @@ ui <- shinyUI(
                            )
                     )
                   )
-          )
+          ),
+          tabItem(tabName = "index",
+                  # First Row: Import Files (side by side)
+                  fluidRow(
+                    column(width = 4, 
+                           box(
+                             title = NULL,
+                             status = "info",
+                             solidHeader = TRUE,
+                             width = NULL,
+                             height = 180,
+                             tags$div(
+                               tags$h4("Download DAP Template", style = "color: var(--primary-color);"),
+                               tags$h5(style = "color: gray;", "Click below to download the template for the Data Analysis Plan.")
+                             ),
+                             downloadButton("download_dap", "Download Template", class = "btn-primary")
+                           )
+                    ),
+                    column(width = 4, 
+                           box(
+                             title = NULL,
+                             status = "primary",
+                             solidHeader = TRUE,
+                             width = NULL,
+                             height = 180,
+                             tags$div(
+                               tags$h4("Import Data Analysis plan", style = "color: var(--primary-color);"),
+                               tags$h5(style = "color: gray;", "Upload the Index DAP based on the template.")
+                             ),
+                             fileInput("dap_file", 
+                                       label = tags$span(style = "color: var(--primary-color);", "Upload Data DAP (xlsx)"), accept = ".xlsx")
+                           )
+                    ),
+                    column(width = 4, 
+                           box(
+                             title = NULL,
+                             status = "primary",
+                             solidHeader = TRUE,
+                             width = NULL,
+                             height = 180,
+                             tags$div(
+                               tags$h4("Select administrative boundaries", style = "color: var(--primary-color);"),
+                               tags$h5(style = "color: gray;", "Important: \nSelect admin1, admin2, admin3, admin4 boundaries in that order")
+                             ),
+                             selectInput("select_admin_bounds", 
+                                         label = tags$span(style = "color: var(--primary-color);", "Select all available admin boundaries"),  
+                                         choices = NULL, multiple = TRUE)
+                           )
+                    ),
+                  ), # fluidrow end
+                  # Second Row: Data Aggregation (spans the entire row)
+                  fluidRow(
+                    column(width = 12, 
+                           box(
+                             title = NULL,
+                             status = "primary",
+                             solidHeader = TRUE,
+                             width = NULL,
+                             tags$div(
+                               tags$h4("Data aggregation", style = "color: var(--primary-color);"),
+                               tags$h5(style = "color: gray;", "Pick all variables relevant for aggregation (i.e., admin1, admin2, admin3).")
+                             )
+                             # ,
+                             # selectInput("select_admin_bounds", 
+                             #             label = tags$span(style = "color: var(--primary-color);", "Choose variable(s) for main analysis (required)"),  
+                             #             choices = NULL, multiple = TRUE)
+                             # uiOutput("aggregation_vars_ui"),
+                             # actionButton("run_aggregation", "Run Aggregation"),
+                             # actionButton("reset_aggregation", "Reset Aggregation"),  # Reset button added
+                             # verbatimTextOutput("aggregation_status"),
+                             # downloadButton("download_aggregated_data", "Download Aggregated Data")
+                           )
+                    )
+                  )
+# ,
+                  # Third Row: Data Analysis (spans the entire row)
+                  # fluidRow(
+                  #   column(width = 12, 
+                  #          box(
+                  #            title = NULL,
+                  #            status = "primary",
+                  #            solidHeader = TRUE,
+                  #            width = NULL,
+                  #            tags$div(
+                  #              tags$h4("Data Analysis", style = "color: var(--primary-color);"),
+                  #              tags$h5(style = "color: gray;", "If data aggregated, pick one of the aggregation variables.")
+                  #            ),
+                  #            selectInput("disaggregate_by_1", 
+                  #                        label = tags$span(style = "color: var(--primary-color);", "Choose variable(s) for main analysis (required)"),  
+                  #                        choices = NULL, multiple = TRUE),
+                  #            selectInput("disaggregate_by_2", 
+                  #                        label = tags$span(style = "color: var(--primary-color);", "Choose variable(s) for second (optional) analysis"), 
+                  #                        choices = NULL, multiple = TRUE),
+                  #            actionButton("run_analysis", "Run Analysis"),
+                  #            # actionButton("reset_analysis", "Reset Analysis"),  # Reset button added
+                  #            verbatimTextOutput("analysis_status"),
+                  #            uiOutput("progress_bar"),
+                  #            downloadButton("download_analysis_data", "Download Analysis Data")
+                  #          )
+                    # )
+                  # )
+          ) # tab item index end
         ) # tabItems end
       )# dashboard body
     )

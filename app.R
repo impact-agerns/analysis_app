@@ -8,6 +8,7 @@ source('src/process_data_for_aggregation.R', local=T)
 source('src/aggregate_data.R', local=T)
 source('src/format.R', local=T)
 source('src/utils.R', local=T)
+# source('src/')
 options(shiny.maxRequestSize = 100 * 1024^2) # 100 MB limit
 
 ui <- source('ui.R', local=T)
@@ -15,17 +16,16 @@ ui <- source('ui.R', local=T)
 
 server <- function(input, output, session) {
   
-  data_in <- reactiveVal(NULL)
+  data_in <- reactiveVal(NULL) # used for clean and aggregated data
   
   survey_data <- reactiveVal(NULL)
   choices_data <- reactiveVal(NULL)
-
-  dis_global <- reactiveVal(NULL)
-  
-  analysis_data_out <- reactiveVal(NULL)
-  
-  # Create the reactive value for the label
   label_global <- reactiveVal(NULL)
+  
+  dis_global <- reactiveVal(NULL)
+  analysis_data_out <- reactiveVal(NULL) # analysis data
+  
+  local_admin_bounds <- reactiveVal(NULL)
   
   observeEvent(input$kobo_file, {
     req(input$kobo_file)
@@ -44,10 +44,17 @@ server <- function(input, output, session) {
       updateSelectInput(session, "label_selector", 
                         choices = label_columns, 
                         selected = label_columns[1])
+      updateSelectInput(session, "select_admin_bounds", choices = survey_data()$name, selected = NULL)
+      
     }, error = function(e) {
       print(paste("Error loading kobo:", e$message))
       showNotification(paste("Error loading kobo:", e$message), type = "error")
     })
+  })
+  
+  observeEvent(input$select_admin_bounds, {
+    req(input$select_admin_bounds)
+    local_admin_bounds(input$select_admin_bounds)
   })
   
   # Separate observer to update label_global when the label selector changes
@@ -62,7 +69,6 @@ server <- function(input, output, session) {
     }
   })
   
-
   # Observe the data file input
   observeEvent(input$data_file, {
     req(input$data_file)
@@ -480,8 +486,137 @@ server <- function(input, output, session) {
     }
   )
   
+  # observeEvent(input$label_selector,input$kobo_file,{
+  #   dap_template <- combine_tool_global_label(survey = survey_data(), 
+  #                                             responses = choices_data(), 
+  #                                             label_col=label_global()) %>% 
+  #     select(question = name, q.type, choice = name.choice) %>% 
+  #     mutate(severity_value = NA_real_, cluster = NA_character_)
+  #   
+  # })
   
   
+  ##### INDEX #### 
+  library(writexl)
+  
+  output$download_dap <- downloadHandler(
+    filename = function() { paste("DAP_Template_", Sys.Date(), ".xlsx", sep = "") },
+    
+    content = function(file) {
+      # Ensure dap_template is properly defined inside the function
+      dap_template <- combine_tool_global_label(survey = survey_data(), 
+                                                responses = choices_data(), 
+                                                label_col = label_global()) %>% 
+        select(question = name, q.type, choice = name.choice) %>% 
+        mutate(severity_value = NA_real_, cluster = NA_character_)
+      
+      # Save as Excel file
+      write_xlsx(dap_template, path = file)
+    }
+  )
+  
+  
+  # observeEvent(input$run_index, {
+  #   req(data_in())
+  #   
+  #   official_admin_boundaries <- c("admin1", "admin2", "admin3", "admin4")
+  # 
+  #   data_in_oadmin <- data_in() %>% 
+  #     rename_with(
+  #       .fn = ~official_admin_boundaries,
+  #       .cols = all_of(local_admin_bounds())
+  #     ) 
+  #   
+  #   if (input$aggregation_option == "aggregate") {
+  #     agg_vars <- input$agg_vars
+  #     
+  #     if (length(agg_vars) == 0) {
+  #       showNotification("Please select at least one variable for aggregation.", type = "error")
+  #       return()
+  #     }
+  #     
+  #     # survey <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'survey')
+  #     # choices <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'choices')
+  #     # print(head(survey_data()))
+  #     
+  #     print('loaded survey data successfully!')
+  #     # print('label is:', label_global()) 
+  #     # print(label_global())
+  #     # print('did it print?')
+  #     
+  #     if (nchar(label_global()) == 0) {
+  #       print("label_global is empty!")
+  #     } else {
+  #       print("label_global has a value.")
+  #     }
+  #     # if (is.null(label_global()) || nrow(label_global()) == 0) {
+  #     #   print("label_global is empty or NULL")
+  #     # } else {
+  #     #   print("label_global has a value")
+  #     # }
+  #     # Combine the survey and choices
+  #     print('about to run combine_tool_global')
+  #     tool.combined <- combine_tool_global_label(survey = survey_data(), responses = choices_data(), label_col=label_global())
+  #     print('tool.combined created')
+  #     # Process column names for aggregation
+  #     col.sm <- tool.combined %>% filter(q.type == "select_multiple") %>% pull(name) %>% unique()
+  #     col.so <- tool.combined %>% filter(q.type == "select_one") %>% pull(name) %>% unique()
+  #     col.int <- survey_data() %>% filter(type == "integer") %>% pull(name) %>% unique()
+  #     col.text <- survey_data() %>% filter(type=="text") %>% pull(name) %>% unique
+  #     
+  #     if (length(col.sm)<=1){
+  #       print("Check if label column is specified correctly in combine_tool function")
+  #       stop("No select_multiple questions found in the tool")
+  #     }else(print("Select multiple questions found in the tool"))
+  #     
+  #     if (any(str_detect(names(data_in()), "/"))){
+  #       sm_separator <-  "/"
+  #       if (sm_separator == "/"){
+  #         print("The separator is /")
+  #         names(data_in()) <- str_replace_all(names(data_in()), "/", ".")
+  #         print("Separator has been replaced to .") 
+  #       }
+  #       
+  #     } else if (any(str_detect(names(data_in()), "."))){
+  #       print("The separator is . Which is good :D")
+  #     }
+  #     
+  #     
+  #     
+  #     # Example aggregation process (modify as needed)
+  #     vedelete <- c("dk", "DK", "dnk","Not_to_sure", "not_sure",  "Not_sure", "pnta", "prefer_not_to_answer", "Prefer_not_to_answer")
+  #     
+  #     data_cleaned <- process_data_for_aggregation(data_in(), replace_vec_na = vedelete)
+  #     print('processed data for aggregation')
+  #     
+  #     req(data_cleaned, agg_vars)  # Ensure these are available
+  #     
+  #     tryCatch({
+  #       aok_aggregated <- aggregate_data(data_cleaned, agg_vars, 
+  #                                        col_so = col.so, col_sm = col.sm, 
+  #                                        col_int = col.int, col_text = col.text)
+  #       
+  #       data_in(aok_aggregated)
+  #       df_aggregated_react <<- reactive({ aok_aggregated })
+  #       
+  #     }, error = function(e) {
+  #       showNotification(paste("Error aggregating data:", e$message), type = "error")
+  #     })      
+  #     print('aggregated data successfully!')
+  #     # Store aggregated data (add any additional processing)
+  #     
+  #     
+  #     output$aggregation_status <- renderText("Aggregation completed successfully!")
+  #   } else {
+  #     output$aggregation_status <- renderText("Data left at KI level. No aggregation performed.")
+  #   }
+  #   
+  #   updateSelectInput(session, "agg_vars", selected = input$agg_vars)
+  #   
+  # })
+  
+  
+  #####
   
   
   
