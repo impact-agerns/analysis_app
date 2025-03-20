@@ -28,6 +28,9 @@ server <- function(input, output, session) {
   
   
   local_admin_bounds <- reactiveVal(NULL)
+  official_admin_boundaries <- reactiveVal(
+    c("admin1", "admin2", "admin3", "admin4")
+    )
   
   data_index_out <- reactiveVal()
   
@@ -52,28 +55,17 @@ server <- function(input, output, session) {
                         selected = label_columns[1])
       updateSelectInput(session, "select_admin_bounds", choices = survey_data()$name, selected = NULL)
       
+      # updateSelectInput(session, "select_admin_bounds", choices = official_admin_boundaries(), selected = NULL)
+        
+      
+      
     }, error = function(e) {
       print(paste("Error loading kobo:", e$message))
       showNotification(paste("Error loading kobo:", e$message), type = "error")
     })
   })
   
-  observeEvent(input$select_admin_bounds, {
-    req(input$select_admin_bounds)
-    local_admin_bounds(input$select_admin_bounds)
-  })
-  
-  # Separate observer to update label_global when the label selector changes
-  observeEvent(input$label_selector, {
-    req(input$label_selector)
-    label_global(input$label_selector)
-    
-    if (nchar(label_global()) == 0) {
-      print("label_global is empty!")
-    } else {
-      print(paste("label_global has a value:", label_global()))
-    }
-  })
+
   
   # Observe the data file input
   observeEvent(input$data_file, {
@@ -102,7 +94,8 @@ server <- function(input, output, session) {
       
       # data <- readxl::read_excel(temp_file_path, sheet = 1, guess_max = 500, na = c("NA", "#N/A", "", " ", "N/A"))
       
-      data_in(data)
+      data_in(data) 
+        
       print("Data successfully read.")
       
       # str(data)
@@ -132,6 +125,34 @@ server <- function(input, output, session) {
     # Update the modified data back into data_in
     data_in(data)
     print('data is in reactive data_in')
+    
+  })
+  
+  observeEvent(input$select_admin_bounds, {
+    req(input$select_admin_bounds)
+    local_admin_bounds(input$select_admin_bounds)
+    
+    # data <- data_in() %>% 
+    #   rename_with(.fn = ~official_admin_boundaries(), .cols = all_of(local_admin_bounds()))
+    # 
+    # data_in(data) 
+    # print('official admin added to data_in')
+    
+  })
+  
+  
+  # Separate observer to update label_global when the label selector changes
+  observeEvent(input$label_selector, {
+    req(input$label_selector)
+    label_global(input$label_selector)
+    
+    if (nchar(label_global()) == 0) {
+      print("label_global is empty!")
+    } else {
+      print(paste("label_global has a value:", label_global()))
+    }
+
+    
   })
   
   #### Aggregation ####
@@ -509,14 +530,32 @@ server <- function(input, output, session) {
     
     content = function(file) {
       # Ensure dap_template is properly defined inside the function
+      
+      aok_si_dap <- read_excel(list.files('input/data/', pattern="standard_si_dap", full.names = T), sheet="standard_aok_si_dap")
+      aok_si_dap_clean <- aok_si_dap %>% 
+        select(sector, type, question, question_label, choice,
+              choice_label, severity_value, comment) %>% 
+        mutate(source = "aok_ib_core")
+      undac_si_dap <- read_excel(list.files('input/data/', pattern="standard_si_dap", full.names = T), sheet="standard_undac_si_dap") %>% 
+        mutate(source = "undac_ib")
+      sources <- bind_rows(aok_si_dap_clean, undac_si_dap) %>% unique() %>% 
+        rename(choice_label_standard = choice_label, question_label_standard = question_label)
+      
       dap_template <- combine_tool_global_label(survey = survey_data(), 
                                                 responses = choices_data(), 
                                                 label_col = label_global()) %>% 
-        select(question = name, question_clean = label, q.type, choice = name.choice, choice_label = label.choice) %>% 
-        mutate(severity_value = NA_real_, sector = NA_character_)
+        select(question = name, question_label = label, type = q.type, choice = name.choice, choice_label = label.choice) %>% 
+        left_join(sources, by=c("question", "choice", "type")) %>% 
+        filter(!str_detect(question, 'admin|role|consent|age'))
+      
+      
+      list_dap <- list("updated_template" = dap_template, 
+                       "AoK_si_standard_dap" = aok_si_dap,
+                       "UNDAC_si_standard_dap" = undac_si_dap)
+      
       
       # Save as Excel file
-      write_xlsx(dap_template, path = file)
+      write_xlsx(list_dap, path = file)
     }
   )
   severity_dap <- reactive({
@@ -524,7 +563,7 @@ server <- function(input, output, session) {
     print('loading severity_dap')
     openxlsx::read.xlsx(input$dap_file$datapath, sheet = 1, 
                                         na.strings = c("NA", "#N/A", "", " ", "N/A")) %>%
-      select(question, type = q.type, choice, severity_value, sector) %>%
+      select(question, type = type, choice, severity_value, sector) %>%
       mutate(severity_value = as.numeric(severity_value))
     
   })

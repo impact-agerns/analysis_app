@@ -57,3 +57,6 @@ deployment.R
 src/app_index.R
 src/app_test.R
 *.png
+app_index_admin_filter.R
+generate_report2.Rmd
+generate_report2.html

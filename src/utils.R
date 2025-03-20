@@ -96,7 +96,7 @@ plot.select <- function(df=result_long %>% filter(is.na(disag_var_1), is.na(disa
     plot <- df_filtered %>% ggplot(aes(x=reorder(label.choice,mean), y=mean)) +
       geom_bar(position='dodge', stat='identity', fill="#EE5859")+
       scale_x_discrete(labels=~str_wrap(., width = 60))+
-      scale_y_continuous(labels=scales::percent_format(), limits=c(0,1.1))+ # to display count only
+      scale_y_continuous(labels = scales::percent_format(), limits = c(0, max(data_filtered$mean)+0.03)) +
       labs(x="", y="% of respondents", 
            # title=str_wrap(paste0(unique(df_filtered$label)), width = 65),
            subtitle=paste0("\n", str_wrap(paste0(unique(df_filtered$label) %>% na.omit), width = 65), "\n\n"),

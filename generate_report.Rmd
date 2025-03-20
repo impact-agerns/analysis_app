@@ -83,14 +83,22 @@ plots_indicator <- list()
 cat("\n## By admin area {.tabset}\n")
 
 # Loop through each 'disag_val'
-for (disag in params$selected_disag_vals) {
+for (disag in c("All", params$selected_disag_vals)) {
   cat(paste0("\n### ", disag, "{.tabset}\n"))  # Main tab for each 'disag_val'
   
   # Create a sub-tabset for questions inside each 'disag_val' tab
   for (question in params$selected_questions) {
     selected_question <- question  # Ensure explicit variable assignment
-    plot_data <- data %>% filter(disag_val_1 == disag, label == selected_question)
-
+    if (disag == "All"){
+      plot_data <- data %>% filter(label==selected_question) %>% 
+        group_by(disag_var_1,q.type, question, label, choice, label.choice) %>% 
+        summarise(count = sum(count, na.rm=T), resp = sum(resp, na.rm=T), mean = count/resp)
+      cat('All contains information on the entire dataset and reflects the overall situation across all areas assessed.\n\n')
+    }else{
+    plot_data <- data %>% filter(disag_val_1 == disag, label == selected_question) %>% 
+              group_by(disag_var_1,disag_val_1, q.type,question, label, choice, label.choice) %>% 
+        summarise(count = sum(count, na.rm=T), resp = sum(resp, na.rm=T), mean = count/resp)
+    }
     if (nrow(plot_data) > 0) {
       cat(paste0("\n#### ", selected_question, "\n"))  # Sub-tab for each question under this 'disag_val'
       
@@ -140,10 +148,12 @@ for (question in params$selected_questions) {
   
   for (choosen in unique(df_filtered$choice)) {
     df_choice <- df_filtered %>% filter(choice == choosen)
-    
+        if (nrow(df_choice) > 0) {
+
     cat(paste0("\n#### ", str_trunc(unique(df_choice$label.choice), 60), "\n"))  # Sub-tab for each choice
     print(plot.ind_comparison(df_choice, choosen))
     cat("\n\n")  # Line breaks for clarity
+        }
   }
 }
 
