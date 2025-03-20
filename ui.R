@@ -22,7 +22,7 @@ ui <- shinyUI(
     includeCSS("www/style.css"),
     dashboardPage(
       dashboardHeader(
-        title = "KI data analysis",
+        title = "KI data analysis tool",
         titleWidth = 300,
         tags$li(
           class = "dropdown", 
@@ -32,6 +32,7 @@ ui <- shinyUI(
       dashboardSidebar(
         sidebarMenu(
           menuItem("Home", tabName = "home", icon = icon("home")),
+          menuItem("Importing data", tabName = "import", icon = icon("gear")),
           menuItem("Analysis", tabName = "analysis", icon = icon("table")),
           menuItem("Analysis Data exploration", tabName = "data_exploration", icon = icon("dashboard")),
           menuItem("Generate Report", tabName = "report", icon = icon("file")),
@@ -44,54 +45,54 @@ ui <- shinyUI(
         tabItems(
           tabItem(tabName = "analysis",
                   # First Row: Import Files (side by side)
-                  fluidRow(
-                    column(width = 4, 
-                           box(
-                             title = NULL,
-                             status = "primary",
-                             solidHeader = TRUE,
-                             width = NULL,
-                             height = 180,
-                             tags$div(
-                               tags$h4("Import dataset", style = "color: var(--primary-color);"),
-                               tags$h5(style = "color: gray;", "Clean data should be saved in the first sheet.")
-                             ),
-                             fileInput("data_file", 
-                                       label = tags$span(style = "color: var(--primary-color);", "Upload Data File (xlsx)"), accept = ".xlsx")
-                           )
-                    ),
-                    column(width = 4, 
-                           box(
-                             title = NULL,
-                             status = "primary",
-                             solidHeader = TRUE,
-                             width = NULL,
-                             height = 180,
-                             tags$div(
-                               tags$h4("Import Kobo file", style = "color: var(--primary-color);"),
-                               tags$h5(style = "color: gray;", "Important: \nKobo tool has to match data.")
-                             ),
-                             fileInput("kobo_file", 
-                                       label = tags$span(style = "color: var(--primary-color);", "Upload Kobo Tool File (xlsx)"), accept = ".xlsx")
-                           )
-                    ),
-                    column(width=4,
-                           box(title=NULL,
-                               status="primary",
-                               solidHeader=TRUE,
-                               width=NULL,
-                               height = 180,
-                               tags$div(
-                                 tags$h4("Choose label column", style = "color: var(--primary-color);"),
-                                 tags$h5(style = "color: gray;", "Choose label variable e.g.`label::English (en)`.")
-                               ),
-                               selectInput("label_selector", 
-                                           label = tags$span(style = "color: var(--primary-color);", "Select label variable"), 
-                                           choices = NULL  # Choices will be updated dynamically
-                               )
-                           )
-                  )
-                  ), # fluidrow end
+                  # fluidRow(
+                  #   column(width = 4, 
+                  #          box(
+                  #            title = NULL,
+                  #            status = "primary",
+                  #            solidHeader = TRUE,
+                  #            width = NULL,
+                  #            height = 180,
+                  #            tags$div(
+                  #              tags$h4("Import dataset", style = "color: var(--primary-color);"),
+                  #              tags$h5(style = "color: gray;", "Clean data should be saved in the first sheet.")
+                  #            ),
+                  #            fileInput("data_file", 
+                  #                      label = tags$span(style = "color: var(--primary-color);", "Upload Data File (xlsx)"), accept = ".xlsx")
+                  #          )
+                  #   ),
+                  #   column(width = 4, 
+                  #          box(
+                  #            title = NULL,
+                  #            status = "primary",
+                  #            solidHeader = TRUE,
+                  #            width = NULL,
+                  #            height = 180,
+                  #            tags$div(
+                  #              tags$h4("Import Kobo file", style = "color: var(--primary-color);"),
+                  #              tags$h5(style = "color: gray;", "Important: \nKobo tool has to match data.")
+                  #            ),
+                  #            fileInput("kobo_file", 
+                  #                      label = tags$span(style = "color: var(--primary-color);", "Upload Kobo Tool File (xlsx)"), accept = ".xlsx")
+                  #          )
+                  #   ),
+                  #   column(width=4,
+                  #          box(title=NULL,
+                  #              status="primary",
+                  #              solidHeader=TRUE,
+                  #              width=NULL,
+                  #              height = 180,
+                  #              tags$div(
+                  #                tags$h4("Choose label column", style = "color: var(--primary-color);"),
+                  #                tags$h5(style = "color: gray;", "Choose label variable e.g.`label::English (en)`.")
+                  #              ),
+                  #              selectInput("label_selector", 
+                  #                          label = tags$span(style = "color: var(--primary-color);", "Select label variable"), 
+                  #                          choices = NULL  # Choices will be updated dynamically
+                  #              )
+                  #          )
+                  # )
+                  # ), # fluidrow end
                   # Second Row: Data Aggregation (spans the entire row)
                   fluidRow(
                     column(width = 12, 
@@ -238,7 +239,7 @@ ui <- shinyUI(
                              height = 180,
                              tags$div(
                                tags$h4("Download DAP Template", style = "color: var(--primary-color);"),
-                               tags$h5(style = "color: gray;", "Click below to download the template for the Data Analysis Plan.")
+                               tags$h5(style = "color: gray;", "Download the Data Analysis Plan template based on the uploaded Kobo tool.")
                              ),
                              downloadButton("download_dap", "Download Template", class = "btn-primary")
                            )
@@ -257,8 +258,95 @@ ui <- shinyUI(
                              fileInput("dap_file", 
                                        label = tags$span(style = "color: var(--primary-color);", "Upload Data DAP (xlsx)"), accept = ".xlsx")
                            )
-                    ),
-                    column(width = 4, 
+                    )
+                    # ,
+                    # column(width = 4, 
+                    #        box(
+                    #          title = NULL,
+                    #          status = "primary",
+                    #          solidHeader = TRUE,
+                    #          width = NULL,
+                    #          height = 180,
+                    #          tags$div(
+                    #            tags$h4("Select administrative boundaries", style = "color: var(--primary-color);"),
+                    #            tags$h5(style = "color: gray;", "Important: \nSelect admin1, admin2, admin3, admin4 boundaries in that order")
+                    #          ),
+                    #          selectInput("select_admin_bounds", 
+                    #                      label = tags$span(style = "color: var(--primary-color);", "Select all available admin boundaries"),  
+                    #                      choices = NULL, multiple = TRUE)
+                    #        )
+                    # ),
+                  ), # fluidrow end
+                  # Second Row: Data Aggregation (spans the entire row)
+                  fluidRow(
+                    column(width = 12, 
+                           box(
+                             title = NULL,
+                             status = "primary",
+                             solidHeader = TRUE,
+                             width = NULL,
+                             tags$div(
+                               tags$h4("Select Index calculation", style = "color: var(--primary-color);"),
+                               tags$h5(style = "color: gray;", "Select the method for calculating the index.")
+                             ),
+                             selectInput("selected_index_method", 
+                                         label = tags$span(style = "color: var(--primary-color);", "Select index method."),  
+                                         choices = c(
+                                           "Flag Severity 3 (Indicator, Cluster, Settlement, Area)" = "flag3",
+                                           "Flag Severity 4 (Indicator, Cluster, Settlement, Area)" = "flag4",
+                                           "Flag Severity 4+ (Indicator, Cluster, Settlement, Area)" = "flag4+",
+                                           "Proportion Severity 3 (Cluster, Settlement, Area)" = "proportion3",
+                                           "Proportion Severity 4 (Cluster, Settlement, Area)" = "proportion4",
+                                           "Proportion Severity 4+ (Cluster, Settlement, Area)" = "proportion4+",
+                                           "Score Index (Indicator, Cluster, Settlement, Area)" = "score"
+                                         ),
+                                         multiple = TRUE),
+                             actionButton("run_index", "Run Index Calculation"),
+                             downloadButton("download_index_data", "Download Index Data"),
+                             verbatimTextOutput("run_message")
+                           ),
+                           mainPanel(
+                             verbatimTextOutput("summary_output")
+                           )
+                    )
+                  ) # fluidrow end
+          ), # tab item index end
+          tabItem(tabName = "import",
+                  # First Row: Import Files (side by side)
+                  fluidRow(
+                    column(width = 6, 
+                                  box(
+                                    title = NULL,
+                                    status = "primary",
+                                    solidHeader = TRUE,
+                                    width = NULL,
+                                    height = 180,
+                                    tags$div(
+                                      tags$h4("Import dataset", style = "color: var(--primary-color);"),
+                                      tags$h5(style = "color: gray;", "Clean data should be saved in the first sheet.")
+                                    ),
+                                    fileInput("data_file", 
+                                              label = tags$span(style = "color: var(--primary-color);", "Upload Data File (xlsx)"), accept = ".xlsx")
+                                  )
+                  ),
+                  column(width = 6, 
+                         box(
+                           title = NULL,
+                           status = "primary",
+                           solidHeader = TRUE,
+                           width = NULL,
+                           height = 180,
+                           tags$div(
+                             tags$h4("Import Kobo file", style = "color: var(--primary-color);"),
+                             tags$h5(style = "color: gray;", "Important: \nKobo tool has to match data.")
+                           ),
+                           fileInput("kobo_file", 
+                                     label = tags$span(style = "color: var(--primary-color);", "Upload Kobo Tool File (xlsx)"), accept = ".xlsx")
+                         )
+                  )
+                  ),
+                  fluidRow(
+                    column(width = 6, 
                            box(
                              title = NULL,
                              status = "primary",
@@ -274,6 +362,22 @@ ui <- shinyUI(
                                          choices = NULL, multiple = TRUE)
                            )
                     ),
+                    column(width=6,
+                           box(title=NULL,
+                               status="primary",
+                               solidHeader=TRUE,
+                               width=NULL,
+                               height = 180,
+                               tags$div(
+                                 tags$h4("Choose label column", style = "color: var(--primary-color);"),
+                                 tags$h5(style = "color: gray;", "Choose label variable e.g.`label::English (en)`.")
+                               ),
+                               selectInput("label_selector", 
+                                           label = tags$span(style = "color: var(--primary-color);", "Select label variable"), 
+                                           choices = NULL  # Choices will be updated dynamically
+                               )
+                           )
+                    )
                   ), # fluidrow end
                   # Second Row: Data Aggregation (spans the entire row)
                   fluidRow(
@@ -284,49 +388,31 @@ ui <- shinyUI(
                              solidHeader = TRUE,
                              width = NULL,
                              tags$div(
-                               tags$h4("Data aggregation", style = "color: var(--primary-color);"),
-                               tags$h5(style = "color: gray;", "Pick all variables relevant for aggregation (i.e., admin1, admin2, admin3).")
-                             )
-                             # ,
-                             # selectInput("select_admin_bounds", 
-                             #             label = tags$span(style = "color: var(--primary-color);", "Choose variable(s) for main analysis (required)"),  
-                             #             choices = NULL, multiple = TRUE)
-                             # uiOutput("aggregation_vars_ui"),
-                             # actionButton("run_aggregation", "Run Aggregation"),
-                             # actionButton("reset_aggregation", "Reset Aggregation"),  # Reset button added
-                             # verbatimTextOutput("aggregation_status"),
-                             # downloadButton("download_aggregated_data", "Download Aggregated Data")
+                               tags$h4("Select Index calculation", style = "color: var(--primary-color);"),
+                               tags$h5(style = "color: gray;", "Select the method for calculating the index.")
+                             ),
+                             selectInput("selected_index_method", 
+                                         label = tags$span(style = "color: var(--primary-color);", "Select index method."),  
+                                         choices = c(
+                                           "Flag Severity 3 (Indicator, Cluster, Settlement, Area)" = "flag3",
+                                           "Flag Severity 4 (Indicator, Cluster, Settlement, Area)" = "flag4",
+                                           "Flag Severity 4+ (Indicator, Cluster, Settlement, Area)" = "flag4+",
+                                           "Proportion Severity 3 (Cluster, Settlement, Area)" = "proportion3",
+                                           "Proportion Severity 4 (Cluster, Settlement, Area)" = "proportion4",
+                                           "Proportion Severity 4+ (Cluster, Settlement, Area)" = "proportion4+",
+                                           "Score Index (Indicator, Cluster, Settlement, Area)" = "score"
+                                         ),
+                                         multiple = TRUE),
+                             actionButton("run_index", "Run Index Calculation"),
+                             downloadButton("download_index_data", "Download Index Data"),
+                             verbatimTextOutput("run_message")
+                           ),
+                           mainPanel(
+                             verbatimTextOutput("summary_output")
                            )
                     )
-                  )
-# ,
-                  # Third Row: Data Analysis (spans the entire row)
-                  # fluidRow(
-                  #   column(width = 12, 
-                  #          box(
-                  #            title = NULL,
-                  #            status = "primary",
-                  #            solidHeader = TRUE,
-                  #            width = NULL,
-                  #            tags$div(
-                  #              tags$h4("Data Analysis", style = "color: var(--primary-color);"),
-                  #              tags$h5(style = "color: gray;", "If data aggregated, pick one of the aggregation variables.")
-                  #            ),
-                  #            selectInput("disaggregate_by_1", 
-                  #                        label = tags$span(style = "color: var(--primary-color);", "Choose variable(s) for main analysis (required)"),  
-                  #                        choices = NULL, multiple = TRUE),
-                  #            selectInput("disaggregate_by_2", 
-                  #                        label = tags$span(style = "color: var(--primary-color);", "Choose variable(s) for second (optional) analysis"), 
-                  #                        choices = NULL, multiple = TRUE),
-                  #            actionButton("run_analysis", "Run Analysis"),
-                  #            # actionButton("reset_analysis", "Reset Analysis"),  # Reset button added
-                  #            verbatimTextOutput("analysis_status"),
-                  #            uiOutput("progress_bar"),
-                  #            downloadButton("download_analysis_data", "Download Analysis Data")
-                  #          )
-                    # )
-                  # )
-          ) # tab item index end
+                  ) # fluidrow end
+          )
         ) # tabItems end
       )# dashboard body
     )

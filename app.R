@@ -1,14 +1,15 @@
 # Required Libraries
 # gc()
 library(pacman)
-p_load(shiny, shinydashboard, dplyr, readxl, openxlsx, janitor, tidyverse, purrr, DT, markdown)
+
+p_load(shiny, shinydashboard, writexl, dplyr, readxl, openxlsx, janitor, tidyverse, purrr, DT, markdown)
 source('src/functions.R', local=T)
 source('src/Mode.R', local=T)
 source('src/process_data_for_aggregation.R', local=T)
 source('src/aggregate_data.R', local=T)
 source('src/format.R', local=T)
 source('src/utils.R', local=T)
-# source('src/')
+source('src/si_functions.R', local=T)
 options(shiny.maxRequestSize = 100 * 1024^2) # 100 MB limit
 
 ui <- source('ui.R', local=T)
@@ -25,7 +26,12 @@ server <- function(input, output, session) {
   dis_global <- reactiveVal(NULL)
   analysis_data_out <- reactiveVal(NULL) # analysis data
   
+  
   local_admin_bounds <- reactiveVal(NULL)
+  
+  data_index_out <- reactiveVal()
+  
+  ##### KOBO ####
   
   observeEvent(input$kobo_file, {
     req(input$kobo_file)
@@ -128,10 +134,7 @@ server <- function(input, output, session) {
     print('data is in reactive data_in')
   })
   
-  # kobo_tool <- reactive({
-  #   req(input$kobo_file)
-  #   read_xlsx(input$kobo_file$datapath)
-  # })
+  #### Aggregation ####
   
   # UI output for aggregation variables
   output$aggregation_vars_ui <- renderUI({
@@ -242,6 +245,7 @@ server <- function(input, output, session) {
   #   output$aggregation_status <- renderText("")  # Clear status
   # })
   
+  #### Analysis ####
   # Analysis button functionality
   # This code snippet integrates progress updates during the processing of data.
   observeEvent(input$run_analysis, {
@@ -361,6 +365,7 @@ server <- function(input, output, session) {
     })
   })
   
+  #### Data exploration ####
   
   #### RUN Data Exploration
   filtered_disag_var_1 <- reactive({
@@ -454,6 +459,7 @@ server <- function(input, output, session) {
       ggsave(file, plot = basic_plot_exploration(), device = "png", width = 12, height = 6, units = "in")
     }
   )
+  #### Report generation ####
   
   observeEvent(input$generate_html, {
     req(input$report_disag_val, input$report_questions)
@@ -491,13 +497,12 @@ server <- function(input, output, session) {
   #                                             responses = choices_data(), 
   #                                             label_col=label_global()) %>% 
   #     select(question = name, q.type, choice = name.choice) %>% 
-  #     mutate(severity_value = NA_real_, cluster = NA_character_)
+  #     mutate(severity_value = NA_real_, sector = NA_character_)
   #   
   # })
   
   
   ##### INDEX #### 
-  library(writexl)
   
   output$download_dap <- downloadHandler(
     filename = function() { paste("DAP_Template_", Sys.Date(), ".xlsx", sep = "") },
@@ -507,112 +512,218 @@ server <- function(input, output, session) {
       dap_template <- combine_tool_global_label(survey = survey_data(), 
                                                 responses = choices_data(), 
                                                 label_col = label_global()) %>% 
-        select(question = name, q.type, choice = name.choice) %>% 
-        mutate(severity_value = NA_real_, cluster = NA_character_)
+        select(question = name, question_clean = label, q.type, choice = name.choice, choice_label = label.choice) %>% 
+        mutate(severity_value = NA_real_, sector = NA_character_)
       
       # Save as Excel file
       write_xlsx(dap_template, path = file)
     }
   )
+  severity_dap <- reactive({
+    req(input$dap_file)
+    print('loading severity_dap')
+    openxlsx::read.xlsx(input$dap_file$datapath, sheet = 1, 
+                                        na.strings = c("NA", "#N/A", "", " ", "N/A")) %>%
+      select(question, type = q.type, choice, severity_value, sector) %>%
+      mutate(severity_value = as.numeric(severity_value))
+    
+  })
+  print('loaded severity dap')
   
-  
-  # observeEvent(input$run_index, {
-  #   req(data_in())
+  # check_indicators <- reactive({
+  #   data_index <- inner_join(data_in(), severity_dap(), by = c("question", "choice"))
+  #   num_unique_values <- length(unique(data_index$question))
+  #   num_indicators <- severity_dictionary %>% select(question) %>% unique() %>% nrow()
+  #   non_matching_values <- anti_join(severity_dictionary, data_index, by = c("question", "choice"))
   #   
-  #   official_admin_boundaries <- c("admin1", "admin2", "admin3", "admin4")
+  #   list(num_unique_values = num_unique_values, 
+  #        num_indicators = num_indicators, 
+  #        non_matching_values = non_matching_values)
+  # })
+  
+  # Download report
+  # output$download_quality_report <- downloadHandler(
+  #   filename = function() { "Indicator_Check_Report.xlsx" },
+  #   content = function(file) {
+  #     report_data <- check_indicators()
+  #     write.xlsx(report_data$non_matching_values, file)
+  #   }
+  # )
+  
   # 
-  #   data_in_oadmin <- data_in() %>% 
-  #     rename_with(
-  #       .fn = ~official_admin_boundaries,
-  #       .cols = all_of(local_admin_bounds())
-  #     ) 
-  #   
-  #   if (input$aggregation_option == "aggregate") {
-  #     agg_vars <- input$agg_vars
-  #     
-  #     if (length(agg_vars) == 0) {
-  #       showNotification("Please select at least one variable for aggregation.", type = "error")
-  #       return()
+  observeEvent(input$run_index, {
+    req(data_in(), severity_dap(), local_admin_bounds())
+    
+    selected_methods <- input$selected_index_method
+    cat('selected method: ', selected_methods)
+    # local_admin_bounds <- c("admin12", "admin22")
+    official_admin_boundaries <- c("admin1", "admin2", "admin3", "admin4")
+    official_admin_boundaries <- official_admin_boundaries[seq_len(length(local_admin_bounds()))]
+    
+    # Process data_in() and store in a new reactive expression
+    data_index <- reactive({
+      data_index <- data_in()
+      if (any(str_detect(names(data_index), "/"))) {
+        names(data_index) <- str_replace_all(names(data_index), "/", ".")
+      }
+      
+      data_index %>%
+        rename_with(.fn = ~official_admin_boundaries, .cols = all_of(local_admin_bounds())) %>% 
+        reshape_long(admin_bounds= official_admin_boundaries)
+      
+    })
+
+    tot_indicators <- severity_dap() %>%
+        mutate(question = str_remove(question, "\\..*")) %>%
+        pull(question) %>% unique()
+    len_all_indicators <- length(tot_indicators)
+    
+    data_index_clean <- data_index() %>% 
+      inner_join(severity_dap(), by = c("question", "choice")) %>% 
+      max_aggregate_sm(severity_dictionary = severity_dap(), admin_bounds = official_admin_boundaries) %>% 
+      ungroup() %>% 
+      mutate(total_number_core_indicators = len_all_indicators)
+    
+    print('initial data_index_clean created')
+    
+    if ("flag3" %in% selected_methods) {
+      data_index_clean <- data_index_clean %>%
+        add_flag3() %>%
+        add_flag3_per_sector(official_admin_boundaries) %>% 
+        add_flag3_per_settlement(official_admin_boundaries) %>% 
+        add_mean_flag3_area(official_admin_boundaries)
+      print('added flag3 index')
+    }
+    if ("flag4" %in% selected_methods) {
+      data_index_clean <- data_index_clean %>%
+        add_flag4() %>%
+        add_flag4_per_sector(official_admin_boundaries) %>% 
+        add_flag4_per_settlement(official_admin_boundaries) %>% 
+        add_mean_flag4_area(official_admin_boundaries)
+      print('added flag4 index')
+    }
+    if ("flag4+" %in% selected_methods) {
+      data_index_clean <- data_index_clean %>%
+        add_flag4plus() %>%
+        add_flag4_plus_per_sector(official_admin_boundaries) %>% 
+        add_flag4_plus_per_settlement(official_admin_boundaries) %>% 
+        add_mean_flag4_plus_area(official_admin_boundaries)
+      print('added flag4+ index')
+    }
+    if ("proportion3" %in% selected_methods) {
+      data_index_clean <- data_index_clean %>%
+        add_proportion3_per_sector(official_admin_boundaries) %>% 
+        add_proportion3_per_settlement(official_admin_boundaries, len_all_indicators = len_all_indicators) %>% 
+        add_mean_proportion3_area(official_admin_boundaries)
+      print('added proportion3 index')
+    }
+    if ("proportion4" %in% selected_methods) {
+      data_index_clean <- data_index_clean %>%
+        add_proportion4_per_sector(official_admin_boundaries) %>% 
+        add_proportion4_per_settlement(official_admin_boundaries, len_all_indicators = len_all_indicators) %>% 
+        add_mean_proportion4_area(official_admin_boundaries)
+      print('added proportion4 index')
+    }
+    if ("proportion4+" %in% selected_methods) {
+      data_index_clean <- data_index_clean %>%
+        add_proportion4_plus_per_sector(official_admin_boundaries) %>% 
+        add_proportion4_plus_per_settlement(official_admin_boundaries, len_all_indicators = len_all_indicators) %>% 
+        add_mean_proportion4_plus_area(official_admin_boundaries)
+      print('added proportion4+ index')
+    }
+    if ("score" %in% selected_methods) {
+      data_index_clean <- data_index_clean %>%
+        add_sector_proportion_score(official_admin_boundaries) %>% 
+        add_settlement_proportion_score(official_admin_boundaries) %>% 
+        add_area_score_index_proportion_25(official_admin_boundaries)
+      print('added Score Index')
+    }
+    
+    raw <- data_index_clean
+    indicator <- data_index_clean %>% select(-contains('area'), -contains('sector'), -contains('settlement'))
+    sector <- data_index_clean %>% select(official_admin_boundaries,contains('sector')) %>% unique()
+    settlement <- data_index_clean %>% select(official_admin_boundaries, 
+                                              contains('settlement'), -contains('area'), -contains('sector')) %>% unique()
+    area <- data_index_clean %>% select(official_admin_boundaries[c(-3,-4)], contains('area')) %>% unique()
+    
+    list_out <- list("Indicator level severity" = indicator, 'sector level' = sector, 'settlement level' = settlement, "area level" = area, "Raw data" = raw)
+    
+    
+    data_index_out(data_index_clean)
+    
+    
+    output$run_message <- renderText({
+      "Index calculation successfully completed!"
+    })
+    
+    
+    # Write Excel file with all sheets
+    # write_xlsx(list_out, paste0(output_path, country, "/AoK_SI_clean_", country, "_", date_round, ".xlsx"))
+    
+    # Download handler for Excel
+    output$download_index_data <- downloadHandler(
+      filename = function() { "severity_index_data.xlsx" },
+      content = function(file) {
+        req(data_index_out())
+        write.xlsx(list_out, file)
+      }
+    )
+  })
+
+  
+  
+
+  # Read and process severity_dap
+  #   severity_dap <- openxlsx::read.xlsx(input$dap_file$datapath, sheet = 1, 
+  #                                     na.strings = c("NA", "#N/A", "", " ", "N/A")) %>%
+  #     select(question, type = q.type, choice, severity_value, sector) %>%
+  #     mutate(severity_value = as.numeric(severity_value))
+  # 
+  #   tot_indicators <- severity_dap %>%
+  #     mutate(question = str_remove(question, "\\..*")) %>%
+  #     pull(question) %>% unique()
+  # 
+  #   len_all_indicators <- length(tot_indicators)
+  # 
+  # # Print for debugging (optional)
+  #   print(paste("Total Indicators:", len_all_indicators))
+  # })
+
+
   #     }
-  #     
-  #     # survey <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'survey')
-  #     # choices <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'choices')
-  #     # print(head(survey_data()))
-  #     
-  #     print('loaded survey data successfully!')
-  #     # print('label is:', label_global()) 
-  #     # print(label_global())
-  #     # print('did it print?')
-  #     
-  #     if (nchar(label_global()) == 0) {
-  #       print("label_global is empty!")
-  #     } else {
-  #       print("label_global has a value.")
-  #     }
-  #     # if (is.null(label_global()) || nrow(label_global()) == 0) {
-  #     #   print("label_global is empty or NULL")
-  #     # } else {
-  #     #   print("label_global has a value")
-  #     # }
-  #     # Combine the survey and choices
-  #     print('about to run combine_tool_global')
-  #     tool.combined <- combine_tool_global_label(survey = survey_data(), responses = choices_data(), label_col=label_global())
-  #     print('tool.combined created')
-  #     # Process column names for aggregation
-  #     col.sm <- tool.combined %>% filter(q.type == "select_multiple") %>% pull(name) %>% unique()
-  #     col.so <- tool.combined %>% filter(q.type == "select_one") %>% pull(name) %>% unique()
-  #     col.int <- survey_data() %>% filter(type == "integer") %>% pull(name) %>% unique()
-  #     col.text <- survey_data() %>% filter(type=="text") %>% pull(name) %>% unique
-  #     
-  #     if (length(col.sm)<=1){
-  #       print("Check if label column is specified correctly in combine_tool function")
-  #       stop("No select_multiple questions found in the tool")
-  #     }else(print("Select multiple questions found in the tool"))
-  #     
-  #     if (any(str_detect(names(data_in()), "/"))){
-  #       sm_separator <-  "/"
-  #       if (sm_separator == "/"){
-  #         print("The separator is /")
-  #         names(data_in()) <- str_replace_all(names(data_in()), "/", ".")
-  #         print("Separator has been replaced to .") 
-  #       }
-  #       
-  #     } else if (any(str_detect(names(data_in()), "."))){
-  #       print("The separator is . Which is good :D")
-  #     }
-  #     
-  #     
-  #     
+  # 
+  # 
+  # 
   #     # Example aggregation process (modify as needed)
   #     vedelete <- c("dk", "DK", "dnk","Not_to_sure", "not_sure",  "Not_sure", "pnta", "prefer_not_to_answer", "Prefer_not_to_answer")
-  #     
+  # 
   #     data_cleaned <- process_data_for_aggregation(data_in(), replace_vec_na = vedelete)
   #     print('processed data for aggregation')
-  #     
+  # 
   #     req(data_cleaned, agg_vars)  # Ensure these are available
-  #     
+  # 
   #     tryCatch({
-  #       aok_aggregated <- aggregate_data(data_cleaned, agg_vars, 
-  #                                        col_so = col.so, col_sm = col.sm, 
+  #       aok_aggregated <- aggregate_data(data_cleaned, agg_vars,
+  #                                        col_so = col.so, col_sm = col.sm,
   #                                        col_int = col.int, col_text = col.text)
-  #       
+  # 
   #       data_in(aok_aggregated)
   #       df_aggregated_react <<- reactive({ aok_aggregated })
-  #       
+  # 
   #     }, error = function(e) {
   #       showNotification(paste("Error aggregating data:", e$message), type = "error")
-  #     })      
+  #     })
   #     print('aggregated data successfully!')
   #     # Store aggregated data (add any additional processing)
-  #     
-  #     
+  # 
+  # 
   #     output$aggregation_status <- renderText("Aggregation completed successfully!")
   #   } else {
   #     output$aggregation_status <- renderText("Data left at KI level. No aggregation performed.")
   #   }
-  #   
+  # 
   #   updateSelectInput(session, "agg_vars", selected = input$agg_vars)
-  #   
+  # 
   # })
   
   
