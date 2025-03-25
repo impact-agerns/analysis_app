@@ -60,3 +60,7 @@ src/app_test.R
 app_index_admin_filter.R
 generate_report2.Rmd
 generate_report2.html
+output/severity_index_data_ssdr3.xlsx
+app_test_filter_index.R
+html_severity.html
+html_severity.Rmd

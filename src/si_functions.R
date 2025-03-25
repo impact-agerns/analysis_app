@@ -36,7 +36,7 @@ max_aggregate_sm <- function(data, severity_dictionary, admin_bounds = admin_bou
 
 add_flag3 <- function(data){
 	data %>% 
-		mutate(flag_3  = case_when(
+		mutate(flag3  = case_when(
 			severity_value >= "3" ~ 1,
 			severity_value < "3" ~ 0,
 			TRUE ~ NA_real_  ))
@@ -44,7 +44,7 @@ add_flag3 <- function(data){
 
 add_flag4 <- function(data){
 	data %>% 
-		mutate(flag_4  = case_when(
+		mutate(flag4  = case_when(
 			severity_value >= "4" ~ 1,
 			severity_value < "4" ~ 0,
 			TRUE ~ NA_real_ ))
@@ -52,7 +52,7 @@ add_flag4 <- function(data){
 
 add_flag4plus <- function(data){
 	data %>% 
-		mutate(flag_4_plus  = case_when(
+		mutate(flag4_plus  = case_when(
 			severity_value > "4" ~ 1,
 			severity_value <= "4" ~ 0,
 			TRUE ~ NA_real_ ))
@@ -61,21 +61,21 @@ add_flag4plus <- function(data){
 add_flag3_per_settlement <- function(data, admin_bounds){
 	data %>% 
 		group_by(across(admin_bounds)) %>% 
-		mutate(flag_3_settlement = sum (flag_3, na.rm = TRUE )
+		mutate(flag3_settlement = sum (flag3, na.rm = TRUE )
 					 )%>% 
 		ungroup()
 }
 add_flag4_per_settlement <- function(data, admin_bounds){
   data %>% 
     group_by(across(admin_bounds)) %>% 
-    mutate(flag_4_settlement = sum (flag_4, na.rm = TRUE )
+    mutate(flag4_settlement = sum (flag4, na.rm = TRUE )
     )%>% 
     ungroup()
 }
 add_flag4_plus_per_settlement <- function(data, admin_bounds){
   data %>% 
     group_by(across(admin_bounds)) %>% 
-    mutate(flag_4_plus_settlement = sum (flag_4_plus, na.rm = TRUE )
+    mutate(flag4_plus_settlement = sum (flag4_plus, na.rm = TRUE )
     )%>% 
     ungroup()
 }
@@ -83,50 +83,56 @@ add_flag4_plus_per_settlement <- function(data, admin_bounds){
 add_flag3_per_sector <- function(data, admin_bounds){
 	data %>% 
 		group_by(across(admin_bounds), sector) %>% 
-		mutate(flag_3_sector = sum (flag_3, na.rm = TRUE )
+		mutate(flag3_sector = sum (flag3, na.rm = TRUE )
 					 )%>% 
 		ungroup()
 }
 add_flag4_per_sector <- function(data, admin_bounds){
   data %>% 
     group_by(across(admin_bounds), sector) %>% 
-    mutate(flag_4_sector = sum (flag_4, na.rm = TRUE )
+    mutate(flag4_sector = sum (flag4, na.rm = TRUE )
     )%>% 
     ungroup()
 }
 add_flag4_plus_per_sector <- function(data, admin_bounds){
   data %>% 
     group_by(across(admin_bounds), sector) %>% 
-    mutate(flag_4_plus_sector = sum (flag_4_plus, na.rm = TRUE )
+    mutate(flag4_plus_sector = sum (flag4_plus, na.rm = TRUE )
     )%>% 
     ungroup()
 }
 
 add_proportion3_per_sector <- function(data, admin_bounds){
 	data %>% 
+    add_flag3() %>%
+    add_flag3_per_sector(admin_bounds) %>% 
 		group_by(across(admin_bounds), sector) %>% 
 		mutate(num_ind_sector = sum(is.na(severity_value)==F)) %>% 
 		group_by(across(admin_bounds)) %>%
-		mutate(proportion_3_sector = round(flag_3_sector / num_ind_sector* 100, 2)
+		mutate(proportion3_sector = round(flag3_sector / num_ind_sector* 100, 2)
 		) %>% select(-num_ind_sector)%>% 
 		ungroup()
 }
 add_proportion4_per_sector <- function(data, admin_bounds){
   data %>% 
+    add_flag4() %>%
+    add_flag4_per_sector(admin_bounds) %>%     
     group_by(across(admin_bounds), sector) %>% 
     mutate(num_ind_sector = sum(is.na(severity_value)==F)) %>% 
     group_by(across(admin_bounds)) %>%
-    mutate(proportion_4_sector = round(flag_4_sector/ num_ind_sector*100,2)
+    mutate(proportion4_sector = round(flag4_sector/ num_ind_sector*100,2)
     ) %>% select(-num_ind_sector)%>% 
     ungroup()
 }
 
 add_proportion4_plus_per_sector <- function(data, admin_bounds){
   data %>% 
+    add_flag4_plus() %>%
+    add_flag4_plus_per_sector(admin_bounds) %>% 
     group_by(across(admin_bounds), sector) %>% 
     mutate(num_ind_sector = sum(is.na(severity_value)==F)) %>% 
     group_by(across(admin_bounds)) %>%
-    mutate(proportion_4_plus_sector = round(flag_4_plus_sector / num_ind_sector*100,2)
+    mutate(proportion4_plus_sector = round(flag4_plus_sector / num_ind_sector*100,2)
     ) %>% select(-num_ind_sector)%>% 
     ungroup()
 }
@@ -134,6 +140,7 @@ add_proportion4_plus_per_sector <- function(data, admin_bounds){
 
 add_proportion3_per_settlement <- function(data, admin_bounds, len_all_indicators) {
 	data %>% 
+    add_flag3_per_settlement(admin_bounds) %>% 
 		filter(is.na(severity_value)==F) %>% 
 		group_by(across(admin_bounds)) %>% 
 		mutate(num_ind = sum(!is.na(severity_value))) %>% 
@@ -144,13 +151,14 @@ add_proportion3_per_settlement <- function(data, admin_bounds, len_all_indicator
 														 NA_character_)
 		) %>% 
 		mutate(
-			proportion_3_settlement = ifelse(flag_below_threshold, NA, round(flag_3_settlement / num_ind * 100, 2))
+			proportion3_settlement = ifelse(flag_below_threshold, NA, round(flag3_settlement / num_ind * 100, 2))
 		) %>% 
 		ungroup()
 }
 
 add_proportion4_per_settlement <- function(data, admin_bounds, len_all_indicators) {
   data %>% 
+    add_flag4_per_settlement(admin_bounds) %>% 
     filter(is.na(severity_value)==F) %>% 
     group_by(across(admin_bounds)) %>% 
     mutate(num_ind = sum(!is.na(severity_value))) %>% 
@@ -160,12 +168,13 @@ add_proportion4_per_settlement <- function(data, admin_bounds, len_all_indicator
                              "Number of indicators is below 50% of the total number of indicators in the severity table. No proportion should be calculated; use the absolute flag index instead.", 
                              NA_character_)
     ) %>% 
-    mutate(proportion_4_settlement = ifelse(flag_below_threshold, NA, round(flag_4_settlement / num_ind * 100, 2))
+    mutate(proportion4_settlement = ifelse(flag_below_threshold, NA, round(flag4_settlement / num_ind * 100, 2))
     ) %>% 
     ungroup()
 }
 add_proportion4_plus_per_settlement <- function(data, admin_bounds, len_all_indicators) {
   data %>% 
+    add_flag4_plus_per_settlement(admin_bounds) %>% 
     filter(is.na(severity_value)==F) %>% 
     group_by(across(admin_bounds)) %>% 
     mutate(num_ind = sum(!is.na(severity_value))) %>% 
@@ -176,7 +185,7 @@ add_proportion4_plus_per_settlement <- function(data, admin_bounds, len_all_indi
                              NA_character_)
     ) %>% 
     mutate(
-      proportion_4_plus_settlement = ifelse(flag_below_threshold, NA, round(flag_4_plus_settlement / num_ind * 100, 2))
+      proportion4_plus_settlement = ifelse(flag_below_threshold, NA, round(flag4_plus_settlement / num_ind * 100, 2))
     ) %>% 
     ungroup()
 }
@@ -255,14 +264,18 @@ add_sector_proportion_score <- function(data_index, official_admin_boundaries) {
 
 
 add_mean_flag3_area <- function(data, admin_bounds) {
-  area_bounds <- admin_bounds[-c(3:4)]
+  # area_bounds <- admin_bounds
+  # area_bounds <- admin_bounds[1:2]
+  area_bounds <- admin_bounds
+  
+  
   out <- data %>% 
     filter(is.na(severity_value)==F) %>% 
-    select(-c(sector, type, question, severity_value, flag_3, contains('sector'))) %>% 
+    select(-c(sector, type, question, severity_value, flag3, contains('sector'))) %>% 
     unique() %>% 
     group_by(across(all_of(area_bounds))) %>% 
     summarise(
-      mean_flag_3_area = mean(flag_3_settlement, na.rm = TRUE)
+      mean_flag3_area = mean(flag3_settlement, na.rm = TRUE)
       )
       
   
@@ -271,14 +284,15 @@ add_mean_flag3_area <- function(data, admin_bounds) {
   
 }
 add_mean_flag4_area <- function(data, admin_bounds) {
-  area_bounds <- admin_bounds[-c(3:4)]
+  area_bounds <- admin_bounds
+  
   out <- data %>% 
     filter(is.na(severity_value)==F) %>% 
-    select(-c(sector, type, question, severity_value, flag_4, contains('sector'))) %>% 
+    select(-c(sector, type, question, severity_value, flag4, contains('sector'))) %>% 
     unique() %>% 
     group_by(across(all_of(area_bounds))) %>% 
     summarise(
-      mean_flag_4_area = mean(flag_4_settlement, na.rm = TRUE)
+      mean_flag4_area = mean(flag4_settlement, na.rm = TRUE)
     )
   
   
@@ -287,14 +301,15 @@ add_mean_flag4_area <- function(data, admin_bounds) {
   
 }
 add_mean_flag4_plus_area <- function(data, admin_bounds) {
-  area_bounds <- admin_bounds[-c(3:4)]
+  area_bounds <- admin_bounds
+
   out <- data %>% 
     filter(is.na(severity_value)==F) %>% 
-    select(-c(sector, type, question, severity_value, flag_4_plus, contains('sector'))) %>% 
+    select(-c(sector, type, question, severity_value, flag4_plus, contains('sector'))) %>% 
     unique() %>% 
     group_by(across(all_of(area_bounds))) %>% 
     summarise(
-      mean_flag4_plus_area = mean(flag_4_plus_settlement, na.rm = TRUE)
+      mean_flag4_plus_area = mean(flag4_plus_settlement, na.rm = TRUE)
     )
   
   data %>% 
@@ -304,19 +319,20 @@ add_mean_flag4_plus_area <- function(data, admin_bounds) {
 
 
 add_mean_proportion3_area <- function(data, admin_bounds) {
-	area_bounds <- admin_bounds[-c(3:4)]
+	area_bounds <- admin_bounds
+
 	out <- data %>% 
 		filter(is.na(severity_value)==F) %>% 
-		select(-c(sector, type, question, severity_value, flag_3,  contains('sector'))) %>% 
+		select(-c(sector, type, question, severity_value, flag3,  contains('sector'))) %>% 
 		unique() %>% 
 		group_by(across(all_of(area_bounds))) %>% 
 		summarise(
-			flag_3_area = sum(flag_3_settlement, na.rm = TRUE),
+			flag3_area = sum(flag3_settlement, na.rm = TRUE),
 			n = n(), 
 			num_ind = sum(num_ind, na.rm=T)
 			) %>% 
 		mutate(
-			mean_proportion_3_area = ifelse(num_ind == 0, NA, round(flag_3_area / num_ind * 100, 2))
+			mean_proportion3_area = ifelse(num_ind == 0, NA, round(flag3_area / num_ind * 100, 2))
 		) %>% 
 		select(contains('admin'), contains('proportion')) 
 	
@@ -326,19 +342,20 @@ add_mean_proportion3_area <- function(data, admin_bounds) {
 }
 
 add_mean_proportion4_area <- function(data, admin_bounds) {
-  area_bounds <- admin_bounds[-c(3:4)]
+  area_bounds <- admin_bounds
+
   out <- data %>% 
     filter(is.na(severity_value)==F) %>% 
-    select(-c(sector, type, question, severity_value, flag_4,contains('sector'))) %>% 
+    select(-c(sector, type, question, severity_value, flag4,contains('sector'))) %>% 
     unique() %>% 
     group_by(across(all_of(area_bounds))) %>% 
     summarise(
-      flag_4_area = sum(flag_4_settlement, na.rm = TRUE),
+      flag4_area = sum(flag4_settlement, na.rm = TRUE),
       n = n(), 
       num_ind = sum(num_ind, na.rm=T)
     ) %>% 
     mutate(
-      mean_proportion_4_area = ifelse(num_ind == 0, NA, round(flag_4_area / num_ind * 100, 2))
+      mean_proportion4_area = ifelse(num_ind == 0, NA, round(flag4_area / num_ind * 100, 2))
     ) %>% 
     select(contains('admin'), contains('proportion')) 
   
@@ -347,19 +364,20 @@ add_mean_proportion4_area <- function(data, admin_bounds) {
   
 }
 add_mean_proportion4_plus_area <- function(data, admin_bounds) {
-  area_bounds <- admin_bounds[-c(3:4)]
+  area_bounds <- admin_bounds
+
   out <- data %>% 
     filter(is.na(severity_value)==F) %>% 
-    select(-c(sector, type, question, severity_value,flag_4_plus, contains('sector'))) %>% 
+    select(-c(sector, type, question, severity_value,flag4_plus, contains('sector'))) %>% 
     unique() %>% 
     group_by(across(all_of(area_bounds))) %>% 
     summarise(
-      flag_4_plus_area = sum(flag_4_plus_settlement, na.rm = TRUE),
+      flag4_plus_area = sum(flag4_plus_settlement, na.rm = TRUE),
       n = n(), 
       num_ind = sum(num_ind, na.rm=T)
     ) %>% 
     mutate(
-      mean_proportion_4_plus_area = ifelse(num_ind == 0, NA, round(flag_4_plus_area / num_ind * 100, 2))
+      mean_proportion4_plus_area = ifelse(num_ind == 0, NA, round(flag4_plus_area / num_ind * 100, 2))
     ) %>% 
     select(contains('admin'), contains('proportion')) 
   
@@ -371,7 +389,8 @@ add_mean_proportion4_plus_area <- function(data, admin_bounds) {
 
 # add_area_proportion_25 <- function()
 add_area_score_index_proportion_25 <- function(data, admin_bounds) {
-	area_bounds <- admin_bounds[-c(3:4)]
+	area_bounds <- admin_bounds
+
 	
 	area_proportions <- data %>%
 		group_by(across(all_of(area_bounds)), severity_value) %>%

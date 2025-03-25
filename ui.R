@@ -189,7 +189,8 @@ ui <- shinyUI(
                                          label = tags$span(style = "color: var(--primary-color);", "Select Questions"), 
                                          choices = NULL, multiple = TRUE),
                              actionButton("generate_html", "Generate HTML Report"),
-                             downloadButton("download_html", "Download HTML Report")
+                             verbatimTextOutput("msg_report_generated"),
+                             downloadButton("download_report_html", "Download HTML Report")
                            )
                     )
                   )
@@ -229,21 +230,20 @@ ui <- shinyUI(
           ),
           tabItem(tabName = "index",
                   # First Row: Import Files (side by side)
-                  fluidRow(
-                    column(width = 4, 
-                           box(
-                             title = NULL,
-                             status = "info",
-                             solidHeader = TRUE,
-                             width = NULL,
-                             height = 180,
-                             tags$div(
-                               tags$h4("Download DAP Template", style = "color: var(--primary-color);"),
-                               tags$h5(style = "color: gray;", "Download the Data Analysis Plan template based on the uploaded Kobo tool.")
-                             ),
-                             downloadButton("download_dap", "Download Template", class = "btn-primary")
-                           )
-                    ),
+                  fluidRow(column(width = 4, 
+                                  box(
+                                    title = NULL,
+                                    status = "info",
+                                    solidHeader = TRUE,
+                                    width = NULL,
+                                    height = 180,
+                                    tags$div(
+                                      tags$h4("Download DAP Template", style = "color: var(--primary-color);"),
+                                      tags$h5(style = "color: gray;", "Download the Data Analysis Plan (DAP) template based on the uploaded Kobo tool.\nThe document also contains the global standard Severity Index DAP for UNDAC and AoK as reference and guidance.")
+                                    ),
+                                    downloadButton("download_dap", "Download Template")
+                                  )
+                  ),
                     column(width = 4, 
                            box(
                              title = NULL,
@@ -253,29 +253,27 @@ ui <- shinyUI(
                              height = 180,
                              tags$div(
                                tags$h4("Import Data Analysis plan", style = "color: var(--primary-color);"),
-                               tags$h5(style = "color: gray;", "Upload the Index DAP based on the template.")
+                               tags$h5(style = "color: gray;", "Upload the Index DAP based on the template. Save DAP in the first sheet.")
                              ),
                              fileInput("dap_file", 
                                        label = tags$span(style = "color: var(--primary-color);", "Upload Data DAP (xlsx)"), accept = ".xlsx")
                            )
+                    ),
+                    column(width = 4, 
+                           box(
+                             title = NULL,
+                             status = "info",
+                             solidHeader = TRUE,
+                             width = NULL,
+                             height = 180,
+                             tags$div(
+                               tags$h4("For Severity Index area calculation", style = "color: var(--primary-color);"),
+                               tags$h5(style = "color: gray;", "Select the admin level at which to calculate area severity.")
+                             ),
+                             selectInput("admin_level_index", "Select Admin Level:",
+                                         choices = c("admin1", "admin2", "admin3", "admin4"),
+                                         selected = "admin2")                           )
                     )
-                    # ,
-                    # column(width = 4, 
-                    #        box(
-                    #          title = NULL,
-                    #          status = "primary",
-                    #          solidHeader = TRUE,
-                    #          width = NULL,
-                    #          height = 180,
-                    #          tags$div(
-                    #            tags$h4("Select administrative boundaries", style = "color: var(--primary-color);"),
-                    #            tags$h5(style = "color: gray;", "Important: \nSelect admin1, admin2, admin3, admin4 boundaries in that order")
-                    #          ),
-                    #          selectInput("select_admin_bounds", 
-                    #                      label = tags$span(style = "color: var(--primary-color);", "Select all available admin boundaries"),  
-                    #                      choices = NULL, multiple = TRUE)
-                    #        )
-                    # ),
                   ), # fluidrow end
                   # Second Row: Data Aggregation (spans the entire row)
                   fluidRow(
@@ -303,12 +301,13 @@ ui <- shinyUI(
                                          multiple = TRUE),
                              actionButton("run_index", "Run Index Calculation"),
                              downloadButton("download_index_data", "Download Index Data"),
-                             verbatimTextOutput("run_message")
-                           ),
-                           mainPanel(
-                             verbatimTextOutput("summary_output")
+                             verbatimTextOutput("run_message"),
+                             br(), br(),  # Adds extra spacing
+                             actionButton("generate_index_html", "Generate HTML Report"),
+                             downloadButton("download_index_html", "Download HTML Report"),
+                             verbatimTextOutput("msg_report_generated")
                            )
-                    )
+                           )
                   ) # fluidrow end
           ), # tab item index end
           tabItem(tabName = "import",
@@ -381,38 +380,9 @@ ui <- shinyUI(
                   ), # fluidrow end
                   # Second Row: Data Aggregation (spans the entire row)
                   fluidRow(
-                    column(width = 12, 
-                           box(
-                             title = NULL,
-                             status = "primary",
-                             solidHeader = TRUE,
-                             width = NULL,
-                             tags$div(
-                               tags$h4("Select Index calculation", style = "color: var(--primary-color);"),
-                               tags$h5(style = "color: gray;", "Select the method for calculating the index.")
-                             ),
-                             selectInput("selected_index_method", 
-                                         label = tags$span(style = "color: var(--primary-color);", "Select index method."),  
-                                         choices = c(
-                                           "Flag Severity 3 (Indicator, Cluster, Settlement, Area)" = "flag3",
-                                           "Flag Severity 4 (Indicator, Cluster, Settlement, Area)" = "flag4",
-                                           "Flag Severity 4+ (Indicator, Cluster, Settlement, Area)" = "flag4+",
-                                           "Proportion Severity 3 (Cluster, Settlement, Area)" = "proportion3",
-                                           "Proportion Severity 4 (Cluster, Settlement, Area)" = "proportion4",
-                                           "Proportion Severity 4+ (Cluster, Settlement, Area)" = "proportion4+",
-                                           "Score Index (Indicator, Cluster, Settlement, Area)" = "score"
-                                         ),
-                                         multiple = TRUE),
-                             actionButton("run_index", "Run Index Calculation"),
-                             downloadButton("download_index_data", "Download Index Data"),
-                             verbatimTextOutput("run_message")
-                           ),
-                           mainPanel(
-                             verbatimTextOutput("summary_output")
-                           )
-                    )
+                    
                   ) # fluidrow end
-          )
+          ) # last tabitem
         ) # tabItems end
       )# dashboard body
     )

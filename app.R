@@ -34,6 +34,15 @@ server <- function(input, output, session) {
   
   data_index_out <- reactiveVal()
   
+  admin_bounds_area_index <- reactive({
+    switch(input$admin_level_index,
+           "admin1" = official_admin_boundaries()[1],
+           "admin2" = official_admin_boundaries()[1:2],
+           "admin3" = official_admin_boundaries()[1:3],
+           "admin4" = official_admin_boundaries()[1:4])
+  })
+  
+  
   ##### KOBO ####
   
   observeEvent(input$kobo_file, {
@@ -504,9 +513,11 @@ server <- function(input, output, session) {
       selected_questions = input$report_questions,
       data_file = temp_file
     ))
+    output$msg_report_generated <- renderText("Report generated successfully!")
+    
   })
   
-  output$download_html <- downloadHandler(
+  output$download_report_html <- downloadHandler(
     filename = "analysis_output.html",
     content = function(file) {
       file.copy("analysis_output.html", file, overwrite = TRUE)
@@ -591,7 +602,7 @@ server <- function(input, output, session) {
   
   # 
   observeEvent(input$run_index, {
-    req(data_in(), severity_dap(), local_admin_bounds())
+    req(data_in(), severity_dap(), local_admin_bounds(), admin_bounds_area_index())
     
     selected_methods <- input$selected_index_method
     cat('selected method: ', selected_methods)
@@ -623,14 +634,21 @@ server <- function(input, output, session) {
       ungroup() %>% 
       mutate(total_number_core_indicators = len_all_indicators)
     
-    print('initial data_index_clean created')
+    cat('initial data_index_clean created')
+    
+    cat('admin bounds for area index:',admin_bounds_area_index())
+    
+    evaluated_admin_bounds <- admin_bounds_area_index()
+    
+    cat('admin bounds for area index:',evaluated_admin_bounds)
+    print('Evaluated')
     
     if ("flag3" %in% selected_methods) {
       data_index_clean <- data_index_clean %>%
         add_flag3() %>%
         add_flag3_per_sector(official_admin_boundaries) %>% 
-        add_flag3_per_settlement(official_admin_boundaries) %>% 
-        add_mean_flag3_area(official_admin_boundaries)
+        add_flag3_per_settlement(official_admin_boundaries) %>%
+        add_mean_flag3_area(admin_bounds = evaluated_admin_bounds)
       print('added flag3 index')
     }
     if ("flag4" %in% selected_methods) {
@@ -709,7 +727,38 @@ server <- function(input, output, session) {
     )
   })
 
+  observeEvent(input$generate_index_html, {
+    req(input$admin_level_index, input$selected_index_method)
+    req(data_index_out())
+    
+    # Define the file path
+    if (Sys.getenv("SHINY_PORT") != "") {
+      # Running on shinyapps.io → Use temp directory
+      temp_file <- file.path(tempdir(), "index_data.rds")
+    } else {
+      # Running locally → Use a local folder
+      temp_file <- "index_data.rds"
+    }
+    
+    saveRDS(data_index_out(), file = temp_file)
+    
+    
+    rmarkdown::render("severity_html.Rmd", output_file = "severity_index_summary.html", 
+                      params = list(
+                        admin_level_index = input$admin_level_index,
+                        selected_index_method = input$selected_index_method,
+                        data_file = temp_file
+                      ))
+    output$msg_report_generated <- renderText("Report generated successfully!")
+    
+  })
   
+  output$download_index_html <- downloadHandler(
+    filename = "severity_index_summary.html",
+    content = function(file) {
+      file.copy("severity_index_summary.html", file, overwrite = TRUE)
+    }
+  )
   
 
   # Read and process severity_dap
