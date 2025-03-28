@@ -1,0 +1,10 @@
+name: geuki_analysis_app
+title: geu_ki_analysis_app
+username: impact-initiatives
+account: impact-initiatives
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 13238042
+bundleId: 9882506
+url: https://impact-initiatives.shinyapps.io/geuki_analysis_app/
+version: 1

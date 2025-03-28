@@ -9,7 +9,6 @@ params:
   selected_disag_vals: NULL
   selected_questions: NULL
   data_file: NULL
-  
 editor_options:
   chunk_output_type: console
 ---
@@ -22,12 +21,13 @@ library(ggplot2)
 library(dplyr)
 library(readxl)
 library(tidyverse)
-source('src/functions.R', local=T)
-source('src/Mode.R', local=T)
-source('src/process_data_for_aggregation.R', local=T)
-source('src/aggregate_data.R', local=T)
-source('src/format.R', local=T)
-source('src/utils.R', local=T)
+source('src/server_functions/functions.R', local=T)
+source('src/server_functions/Mode.R', local=T)
+source('src/server_functions/process_data_for_aggregation.R', local=T)
+source('src/server_functions/aggregate_data.R', local=T)
+source('src/server_functions/functions.R', local=T)
+source('src/server_functions/format.R', local=T)
+source('src/server_functions/utils.R', local=T)
 # Set global chunk options
 knitr::opts_chunk$set(
   echo = FALSE,      # Hide code in the output
@@ -58,9 +58,10 @@ local <- F
 if (local==T){
 data <- read_excel(list.files('input', pattern="analysis_data_test", full.names = TRUE)) 
 params <- NULL
-params$selected_disag_vals <- c("SS0202", "SS0103", "SS0102")
-params$selected_questions <- "What are the main problems with water in ${info_settlement_final}?"
-params$selected_questions <- "For the displaced people who have arrived in ${info_settlement_final}, what are the main reasons that they left their homes?"
+params$selected_disag_vals <- c("JM01060", "JM02006")
+# params$selected_questions <- "What are the main problems with water in ${info_settlement_final}?"
+# params$selected_questions <- "For the displaced people who have arrived in ${info_settlement_final}, what are the main reasons that they left their homes?"
+params$selected_questions <- "(D4) Which of the following population groups are currently present in the settlement?"
 print(params$selected_disag_vals)
 print(params$selected_questions)
 print(head(data))  # Check if data is being read properly
@@ -135,6 +136,7 @@ for (question in params$selected_questions) {
   selected_question <- question
   cat(paste0("\n### ", question, "{.tabset}\n"))
   
+
   # Process data once for the given question
   df_filtered <- area_data %>%
     filter(label == selected_question) %>%
@@ -146,6 +148,8 @@ for (question in params$selected_questions) {
     arrange(choice, desc(mean), desc(count)) %>%
     slice_max(count, n = 10)
   
+  if (nrow(df_filtered) > 0) {
+  
   for (choosen in unique(df_filtered$choice)) {
     df_choice <- df_filtered %>% filter(choice == choosen)
         if (nrow(df_choice) > 0) {
@@ -154,6 +158,7 @@ for (question in params$selected_questions) {
     print(plot.ind_comparison(df_choice, choosen))
     cat("\n\n")  # Line breaks for clarity
         }
+  }
   }
 }
 
@@ -183,11 +188,13 @@ for (question in params$selected_questions) {
       mutate(total_percentage = sum(mean)) %>% ungroup() %>% 
       arrange(desc(total_percentage), desc(mean))
     
+    if (nrow(data_filtered) > 0) {
+     
     resp_sum <- data_filtered %>% select(disag_val_1, resp) %>% unique() %>% pull(resp) %>% sum()
   
     print(plot_area_comparison(data_filtered))
     cat("\n\n")  # Line breaks for clarity
-  
+    }
 }
 
 ```

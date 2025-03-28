@@ -8,6 +8,7 @@ output:
 params:
   admin_level_index: NULL
   selected_index_method: NULL
+  select_admin_bounds: NULL
   data_file: NULL
 editor_options:
   chunk_output_type: console
@@ -37,16 +38,26 @@ knitr::opts_chunk$set(
 
 
 # Load data
-local <- F  # Change to FALSE for non-local execution
+local <- interactive() || knitr::is_html_output()  # Adjust based on your case
 
 if (local) {
   data <- read_excel("output/severity_index_data_ssdr3.xlsx", sheet = "Raw data")
   selected_methods <- c("flag3", "score")
-  admin_level <- "admin2"
+  
+  data <- readRDS('index_data.rds')
+  selected_methods <- c("flag4", "score")
+  
+  select_admin_bounds <- c("admin1", "admin2")
+  length(select_admin_bounds)
+  
+  
+  
+  admin_level_index <- "admin2"
+  admin_level <- admin_level_index
 } else {
   data <- readRDS(params$data_file)
   selected_methods <- params$selected_index_method
-  admin_level <- params$admin_level_index
+  admin_level <- params$admin_level_index[[1]]
   
   # belle <- data %>% 
   #   filter(admin4=="BELLE")
@@ -58,6 +69,7 @@ if (is.null(selected_methods)) selected_methods <- c("flag4", "score")
 
 # Identify admin boundary used
 admin_boundaries <- c("admin1", "admin2", "admin3", "admin4")
+admin_boundaries <- admin_boundaries[1:length(select_admin_bounds)]
 
 if (!admin_level %in% admin_boundaries) admin_level <- "admin2"
 ```
@@ -71,7 +83,7 @@ The results below show the top 10 values in terms of severity at indicator, sect
 for (method in selected_methods) {
   # method <- "flag3"
   cat(paste0("\n#### ", method, " {.tabset}\n"))
-  # method <- "flag3"
+  method <- "flag4"
   
   ranking_var <- if (method == "score") {
     "severity_value"
@@ -162,7 +174,7 @@ for (method in selected_methods) {
       head(10)
     
     kable <- top_sector %>% 
-      rename_with(~ paste0("Number of ",method), .cols = 2) %>%
+      rename_with(~ paste0("Number of ",method), .cols = ncol(top_sector)) %>%
       mutate(Rank = row_number(), .before = 1) %>% 
       knitr::kable(format = "html")  %>%
       kableExtra::kable_styling(full_width = FALSE) %>% 
@@ -184,7 +196,7 @@ for (method in selected_methods) {
       head(10)
     
     kable <- top_sector %>% 
-      rename_with(~ paste0("Mean ",method), .cols = 2) %>%
+      rename_with(~ paste0("Mean ",method), .cols = ncol(top_sector)) %>%
       mutate(Rank = row_number(), .before = 1) %>% 
       knitr::kable(format = "html") %>%
       kableExtra::kable_styling(full_width = FALSE) %>% 
@@ -213,6 +225,8 @@ for (method in selected_methods) {
 ### Settlement {.tabset}
 ```{r, result="asis"}
 for (method in selected_methods) {
+  # method <- "flag4"
+  # method <- "score"
   cat(paste0("\n#### ", method, " {.tabset}\n"))
   
   ranking_var <- if (method == "score") {
@@ -220,13 +234,14 @@ for (method in selected_methods) {
   } else {
     ranking_var <- paste0(method, "_settlement")
   }
-  
+  # cat('where is the issue with the location 4?\n')
   top_settlements <- data %>%
     select(admin_boundaries,ranking_var) %>% unique() %>% 
     arrange(desc(across(contains(ranking_var)))) %>%
     head(10) %>% 
-    rename_with(~ paste0("Value for ",method), .cols = 5) %>%
     mutate(Rank = row_number(), .before = 1)
+  top_settlements <- top_settlements%>% 
+    rename_with(~ paste0("Value for ",method), .cols = ncol(top_settlements)) 
   
   kable <- top_settlements %>% knitr::kable(format = "html") %>%
     kableExtra::kable_styling(full_width = FALSE) %>% 
@@ -243,9 +258,7 @@ for (method in selected_methods) {
 ```{r, results='asis'}
 for (method in selected_methods) {
   cat(paste0("\n#### ", method, " {.tabset}\n"))
-  # method <- "flag3"
-  # method <- "score"
-  
+
   ranking_var <- if (method == "score") {
     "score_index_area"
   } else {
@@ -258,8 +271,9 @@ for (method in selected_methods) {
     unique() %>% 
     arrange(desc(across(contains(ranking_var))))%>%
     head(10) %>% 
-    rename_with(~ paste0("value for ",method), .cols = 2) %>%
     mutate(Rank = row_number(), .before = 1) 
+  top_areas <- top_areas %>% 
+    rename_with(~ paste0("value for ",method), .cols = ncol(top_areas)) 
   
   cat(paste0("\n**Admin Boundary Level:** ", admin_level, "\n"))
   

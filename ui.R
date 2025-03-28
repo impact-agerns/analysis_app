@@ -33,10 +33,11 @@ ui <- shinyUI(
         sidebarMenu(
           menuItem("Home", tabName = "home", icon = icon("home")),
           menuItem("Importing data", tabName = "import", icon = icon("gear")),
-          menuItem("Analysis", tabName = "analysis", icon = icon("table")),
+          menuItem("Aggregation & Analysis", tabName = "analysis", icon = icon("table")),
           menuItem("Analysis Data exploration", tabName = "data_exploration", icon = icon("dashboard")),
           menuItem("Generate Report", tabName = "report", icon = icon("file")),
-          menuItem("Severity Index", tabName = "index", icon = icon("chart-bar"))
+          menuItem("Severity Index", tabName = "index", icon = icon("chart-bar")),
+          menuItem("Documentation", tabName = "documentation", icon = icon("book"))
           # menuItem("Data plotting", tabName = "plot", icon = icon("chart-bar"))
         )
       ),
@@ -103,7 +104,7 @@ ui <- shinyUI(
                              width = NULL,
                              tags$div(
                                tags$h4("Data aggregation", style = "color: var(--primary-color);"),
-                               tags$h5(style = "color: gray;", "Pick all variables relevant for aggregation (i.e., admin1, admin2, admin3).")
+                               tags$h5(style = "color: gray;", "Select the variable (indicator) to use as the unit of analysis (e.g. “settlement_name”) and all other relevant location indicators linked to that unit of analysis (e.g. “admin1”; “admin2”; “admin3”). The Aggregated Data can be used for any information products displaying community-level results (e.g. mapping of values for individual settlements).")
                              ),
                              selectInput("aggregation_option", 
                                          label = tags$span(style = "color: var(--primary-color);", "Do you want to aggregate the data?"), 
@@ -127,7 +128,7 @@ ui <- shinyUI(
                              width = NULL,
                              tags$div(
                                tags$h4("Data Analysis", style = "color: var(--primary-color);"),
-                               tags$h5(style = "color: gray;", "If data aggregated, pick one of the aggregation variables.")
+                               tags$h5(style = "color: gray;", "After clicking on Run Aggregation in the previous step, select the (first) variable (indicator) to use as the level of analysis (typically this will be the admin2). Optionally, if further disaggregation is desired, select a second variable to disaggregate by (in most cases, this optional step is not necessary). The Analysis Data can be used for any information products displaying area-level results (e.g. mapping of summarised values at admin 2 level).")
                              ),
                              selectInput("disaggregate_by_1", 
                                          label = tags$span(style = "color: var(--primary-color);", "Choose variable(s) for main analysis (required)"),  
@@ -189,8 +190,9 @@ ui <- shinyUI(
                                          label = tags$span(style = "color: var(--primary-color);", "Select Questions"), 
                                          choices = NULL, multiple = TRUE),
                              actionButton("generate_html", "Generate HTML Report"),
-                             verbatimTextOutput("msg_report_generated"),
-                             downloadButton("download_report_html", "Download HTML Report")
+                             downloadButton("download_report_html", "Download HTML Report"),
+                             verbatimTextOutput("msg_report_generated_success")
+                             
                            )
                     )
                   )
@@ -205,7 +207,8 @@ ui <- shinyUI(
                              width = NULL,
                              tags$div(
                                tags$h4("Data Exploration", style = "color: var(--primary-color);"),
-                               tags$h5(style = "color: gray;", "Select a question and filters to explore the data.")
+                               tags$h5(style = "color: gray;", "Data is based on analysis run in the previous page. Select a question and filters to explore the data.
+Select a question and filters to explore the data. To see data aggregated for the entire area, generate a report in the next page.")
                              ),
                              selectInput("filter_disag_var_1", 
                                          label = tags$span(style = "color: var(--primary-color);", "Select Disaggregation Level"), 
@@ -302,10 +305,14 @@ ui <- shinyUI(
                              actionButton("run_index", "Run Index Calculation"),
                              downloadButton("download_index_data", "Download Index Data"),
                              verbatimTextOutput("run_message"),
-                             br(), br(),  # Adds extra spacing
+                             br(), 
                              actionButton("generate_index_html", "Generate HTML Report"),
                              downloadButton("download_index_html", "Download HTML Report"),
-                             verbatimTextOutput("msg_report_generated")
+                             verbatimTextOutput("msg_report_generated"),
+                             br(),  # Adds extra spacing
+                             actionButton("generate_sensitivity_analysis", "Generate Flag Index Sensitivity Analysis"),
+                             downloadButton("download_sensitvity_analysis", "Download Flag Index Sensitivity Analysis"),
+                             verbatimTextOutput("msg_sensitivity_analysis_generated")
                            )
                            )
                   ) # fluidrow end
@@ -322,7 +329,7 @@ ui <- shinyUI(
                                     height = 180,
                                     tags$div(
                                       tags$h4("Import dataset", style = "color: var(--primary-color);"),
-                                      tags$h5(style = "color: gray;", "Clean data should be saved in the first sheet.")
+                                      tags$h5(style = "color: gray;", paste0("\nImportant: \nData should be in xml format and cleaned before importing. The clean data should then be saved in the first sheet.\n"))
                                     ),
                                     fileInput("data_file", 
                                               label = tags$span(style = "color: var(--primary-color);", "Upload Data File (xlsx)"), accept = ".xlsx")
@@ -337,7 +344,7 @@ ui <- shinyUI(
                            height = 180,
                            tags$div(
                              tags$h4("Import Kobo file", style = "color: var(--primary-color);"),
-                             tags$h5(style = "color: gray;", "Important: \nKobo tool has to match data.")
+                             tags$h5(style = "color: gray;", "Important: the uploaded Kobo tool must be the exact same tool used to collect the data.")
                            ),
                            fileInput("kobo_file", 
                                      label = tags$span(style = "color: var(--primary-color);", "Upload Kobo Tool File (xlsx)"), accept = ".xlsx")
@@ -354,7 +361,7 @@ ui <- shinyUI(
                              height = 180,
                              tags$div(
                                tags$h4("Select administrative boundaries", style = "color: var(--primary-color);"),
-                               tags$h5(style = "color: gray;", "Important: \nSelect admin1, admin2, admin3, admin4 boundaries in that order")
+                               tags$h5(style = "color: gray;", "Important: \nSelect the admin1, admin2, admin3, admin4 (e.g. settlement/village) boundaries in that order")
                              ),
                              selectInput("select_admin_bounds", 
                                          label = tags$span(style = "color: var(--primary-color);", "Select all available admin boundaries"),  
@@ -369,7 +376,7 @@ ui <- shinyUI(
                                height = 180,
                                tags$div(
                                  tags$h4("Choose label column", style = "color: var(--primary-color);"),
-                                 tags$h5(style = "color: gray;", "Choose label variable e.g.`label::English (en)`.")
+                                 tags$h5(style = "color: gray;", "Important: \nIn both the “survey” and “choice” sheets of the Kobo xlsx, the “label” column header should be written the same way.")
                                ),
                                selectInput("label_selector", 
                                            label = tags$span(style = "color: var(--primary-color);", "Select label variable"), 
@@ -382,7 +389,13 @@ ui <- shinyUI(
                   fluidRow(
                     
                   ) # fluidrow end
-          ) # last tabitem
+          ), # last tabitem
+          tabItem(tabName = "documentation",
+                  fluidRow(column(width = 12,
+                                  div(class = "markdown-content", includeMarkdown("www/method.md"))
+                  )
+                  )
+          )
         ) # tabItems end
       )# dashboard body
     )

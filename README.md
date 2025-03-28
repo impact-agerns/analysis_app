@@ -1,50 +1,22 @@
-### Aggregation & Analysis app for KI-level data
+### Structured community KI (AoK) data analysis tool
 
-Created by: Global Emergencies Unit - Impact Initiatives.
+Created by: Global Emergencies Unit (Alvaro Gerns), Impact Initiatives, 2025.
 
-The app can be accessed here: <https://impact-initiatives.shinyapps.io/geuki_analysis_app/>
+The app link: <https://impact-initiatives.shinyapps.io/ki_analysis_app/>
 
-Purpose: The app is intended to simplify and standardize the aggregation and analysis process of Key informant information. It allows a less technical audience to run the app autonomsly. Through the app the data gets transformed into the desired output with very few steps and can then be used for other products.
+#### Purpose:
 
-<br>
+The app provides a simple and standard tool to analyze structured community KI data (aka Area of Knowledge or AoK data). It can be used by anyone autonomously, even without specialised data analysis or coding skills. The app allows to do a plethora of steps:
 
-### Method:
+1.  Aggregating KI-level data to higher administrative levels.
+2.  Transform structured community KI data into desired analysis outputs that can be used as a basis for information products
+3.  Explore the analyzed data through visualizations that can be downloaded.
+4.  Create a Severity Index based on the UNDAC or AoK Indicator Bank and Acute Needs in Emergencies Framework.
 
-<br>
+It can be used as the analysis tool for any research cycle based on structured community KI (AoK) data, such as sudden onset assessments (e.g. conducted by UNDAC), Humanitarian Situation Monitoring (HSM), Multi-Sectoral Needs Assessments (MSNAs) in hard-to-reach areas, etc.
 
-####    1. Data aggregation
-
-When working with KI-level data, the information is often not comparable between regions, and requires aggregation of responses to a higher level of analysis.
-
-Example: In area A there is one 1 KI and in area B there are 5 KIs. When looking at the results of the assessment in terms of percentage response of the KIs area A often reaches 100% as there is only one KI, and area B never reaches 100%. To be able to compare the responses between both areas, the data has to be transformed. One approach is by aggregating the data up to the desired level, for example area-level.
-
-Depending on the type of indicator the information is aggregated differently:
-
-`select_one` : Mode (Most common choice)
-
-`select_multiple` : All choices of all KIs are kept
-
-`integer` : Mean (arithmetic)
-
-`text` : Mode
-
-By aggregating the data up to area-level area A is now showing 1 response, and area B also is showing 1 response, this is shown in the dataset as 1 row for each area instead of previously being 1 row per KI.
-
-<br>
-
-####    2. Data analysis
-
-For reporting and analysis purposes the data has to be summarised to identify the number of responses given, the total number of people/areas that have been given that question and the resulting percentages. This transformation is happening in the data analysis step. This step does not require the data to be aggregated previously.
-
-In the data analysis part, 2 analyses can be run at the same time, with the second one being optional.
-
-Each analysis can be run with multiple variables.
-
-Example: Analysis using the following variables - admin2, KI-type
-
-In this case the analysis script will set the 2 selected variables as dimensions of the analysis and identify for each distinct combination of the 2 variables all response statistics for all indicators/choices.
-
-<br>
+For guidance on structured community KI surveys, refer to the AoK Guidance Note or contact IMPACT HQ.
 
 For any questions contact Alvaro Gerns (alvaro.gerns\@impact-initiatives.org)
-Github repository (https://github.com/agerns/analysis_app)
+
+Github repository (<https://github.com/agerns/analysis_app>)

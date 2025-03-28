@@ -3,13 +3,13 @@
 library(pacman)
 
 p_load(shiny, shinydashboard, writexl, dplyr, readxl, openxlsx, janitor, tidyverse, purrr, DT, markdown)
-source('src/functions.R', local=T)
-source('src/Mode.R', local=T)
-source('src/process_data_for_aggregation.R', local=T)
-source('src/aggregate_data.R', local=T)
-source('src/format.R', local=T)
-source('src/utils.R', local=T)
-source('src/si_functions.R', local=T)
+source('src/server_functions/functions.R', local=T)
+source('src/server_functions/Mode.R', local=T)
+source('src/server_functions/process_data_for_aggregation.R', local=T)
+source('src/server_functions/aggregate_data.R', local=T)
+source('src/server_functions/format.R', local=T)
+source('src/server_functions/utils.R', local=T)
+source('src/server_functions/si_functions.R', local=T)
 options(shiny.maxRequestSize = 100 * 1024^2) # 100 MB limit
 
 ui <- source('ui.R', local=T)
@@ -266,6 +266,25 @@ server <- function(input, output, session) {
     
     updateSelectInput(session, "agg_vars", selected = input$agg_vars)
     
+    
+    output$download_aggregated_data <- downloadHandler(
+      filename = function() {
+        paste("aggregated_data_", Sys.Date(), ".xlsx", sep = "")
+      },
+      content = function(file) {
+        wb <- createWorkbook()
+        sheet_name <- "Aggregated Data"
+        data_to_write <- df_aggregated_react()  # Reactive expression for aggregated data
+        
+        # Write data to the worksheet
+        addWorksheet(wb, sheet_name)
+        writeData(wb, sheet_name, data_to_write)
+        
+        # Save workbook
+        saveWorkbook(wb, file, overwrite = TRUE)
+      }
+    )
+    
   })
   
   # observeEvent(input$reset_aggregation, {
@@ -393,6 +412,29 @@ server <- function(input, output, session) {
       # Success message
       output$analysis_status <- renderText("Analysis completed successfully!")
     })
+    
+    
+    # Server-side logic for downloading analysis data
+    output$download_analysis_data <- downloadHandler(
+      filename = function() {
+        paste("analysis_data_", Sys.Date(), ".xlsx", sep = "")
+      },
+      content = function(file) {
+        wb <- createWorkbook()
+        sheet_name <- "Analysis Data"
+        data_to_write <- df_res_labelled_reactive()  # Reactive expression for analysis data
+        
+        # Write data to the worksheet
+        addWorksheet(wb, sheet_name)
+        writeData(wb, sheet_name, data_to_write)
+        
+        # Save workbook
+        saveWorkbook(wb, file, overwrite = TRUE)
+      }
+    )
+    
+    
+    
   })
   
   #### Data exploration ####
@@ -476,19 +518,19 @@ server <- function(input, output, session) {
     p
   })
   
-  
-  
-  output$basic_plot_exploration <- renderPlot({
-    basic_plot_exploration()
-    
-  })
-  
   output$download_plot <- downloadHandler(
     filename = function() { paste("plot_", Sys.Date(), ".png", sep = "") },
     content = function(file) {
       ggsave(file, plot = basic_plot_exploration(), device = "png", width = 12, height = 6, units = "in")
     }
   )
+  
+  output$basic_plot_exploration <- renderPlot({
+    basic_plot_exploration()
+    
+  })
+  
+
   #### Report generation ####
   
   observeEvent(input$generate_html, {
@@ -513,7 +555,7 @@ server <- function(input, output, session) {
       selected_questions = input$report_questions,
       data_file = temp_file
     ))
-    output$msg_report_generated <- renderText("Report generated successfully!")
+    output$msg_report_generated_success <- renderText("Report generated successfully!")
     
   })
   
@@ -661,7 +703,7 @@ server <- function(input, output, session) {
     }
     if ("flag4+" %in% selected_methods) {
       data_index_clean <- data_index_clean %>%
-        add_flag4plus() %>%
+        add_flag4_plus() %>%
         add_flag4_plus_per_sector(official_admin_boundaries) %>% 
         add_flag4_plus_per_settlement(official_admin_boundaries) %>% 
         add_mean_flag4_plus_area(official_admin_boundaries)
@@ -745,75 +787,57 @@ server <- function(input, output, session) {
     
     rmarkdown::render("severity_html.Rmd", output_file = "severity_index_summary.html", 
                       params = list(
+                        select_admin_bounds = input$select_admin_bounds,
                         admin_level_index = input$admin_level_index,
                         selected_index_method = input$selected_index_method,
                         data_file = temp_file
                       ))
     output$msg_report_generated <- renderText("Report generated successfully!")
     
+    output$download_index_html <- downloadHandler(
+      filename = "severity_index_summary.html",
+      content = function(file) {
+        req(input$generate_index_html)
+        file.copy("severity_index_summary.html", file, overwrite = TRUE)
+      }
+    )
+    
   })
   
-  output$download_index_html <- downloadHandler(
-    filename = "severity_index_summary.html",
-    content = function(file) {
-      file.copy("severity_index_summary.html", file, overwrite = TRUE)
+  observeEvent(input$generate_sensitivity_analysis, {
+    req(input$admin_level_index, input$selected_index_method)
+    req(data_index_out())
+    
+    # Define the file path
+    if (Sys.getenv("SHINY_PORT") != "") {
+      # Running on shinyapps.io → Use temp directory
+      temp_file <- file.path(tempdir(), "index_data.rds")
+    } else {
+      # Running locally → Use a local folder
+      temp_file <- "index_data.rds"
     }
-  )
-  
+    
+    saveRDS(data_index_out(), file = temp_file)
+    
+    
+    rmarkdown::render("flag_index_sensitivity_analysis.Rmd", output_file = "flag_index_sensitvity_analysis.html", 
+                      params = list(
+                        admin_level_index = input$admin_level_index,
+                        selected_index_method = input$selected_index_method,
+                        data_file = temp_file
+                      ))
+    output$msg_sensitivity_analysis_generated <- renderText("Sensitivity Analysis generated successfully!")
+    
+    output$download_sensitvity_analysis <- downloadHandler(
+      filename = "flag_index_sensitvity_analysis.html",
+      content = function(file) {
+        req(input$generate_index_html)
+        file.copy("flag_index_sensitvity_analysis.html", file, overwrite = TRUE)
+      }
+    )
+    
+  })
 
-  # Read and process severity_dap
-  #   severity_dap <- openxlsx::read.xlsx(input$dap_file$datapath, sheet = 1, 
-  #                                     na.strings = c("NA", "#N/A", "", " ", "N/A")) %>%
-  #     select(question, type = q.type, choice, severity_value, sector) %>%
-  #     mutate(severity_value = as.numeric(severity_value))
-  # 
-  #   tot_indicators <- severity_dap %>%
-  #     mutate(question = str_remove(question, "\\..*")) %>%
-  #     pull(question) %>% unique()
-  # 
-  #   len_all_indicators <- length(tot_indicators)
-  # 
-  # # Print for debugging (optional)
-  #   print(paste("Total Indicators:", len_all_indicators))
-  # })
-
-
-  #     }
-  # 
-  # 
-  # 
-  #     # Example aggregation process (modify as needed)
-  #     vedelete <- c("dk", "DK", "dnk","Not_to_sure", "not_sure",  "Not_sure", "pnta", "prefer_not_to_answer", "Prefer_not_to_answer")
-  # 
-  #     data_cleaned <- process_data_for_aggregation(data_in(), replace_vec_na = vedelete)
-  #     print('processed data for aggregation')
-  # 
-  #     req(data_cleaned, agg_vars)  # Ensure these are available
-  # 
-  #     tryCatch({
-  #       aok_aggregated <- aggregate_data(data_cleaned, agg_vars,
-  #                                        col_so = col.so, col_sm = col.sm,
-  #                                        col_int = col.int, col_text = col.text)
-  # 
-  #       data_in(aok_aggregated)
-  #       df_aggregated_react <<- reactive({ aok_aggregated })
-  # 
-  #     }, error = function(e) {
-  #       showNotification(paste("Error aggregating data:", e$message), type = "error")
-  #     })
-  #     print('aggregated data successfully!')
-  #     # Store aggregated data (add any additional processing)
-  # 
-  # 
-  #     output$aggregation_status <- renderText("Aggregation completed successfully!")
-  #   } else {
-  #     output$aggregation_status <- renderText("Data left at KI level. No aggregation performed.")
-  #   }
-  # 
-  #   updateSelectInput(session, "agg_vars", selected = input$agg_vars)
-  # 
-  # })
-  
   
   #####
   
@@ -821,31 +845,7 @@ server <- function(input, output, session) {
   
   
   #### PLOTTING
-  
-  
-  # # Reset Analysis functionality
-  # observeEvent(input$reset_analysis, {
-  #   updateSelectInput(session, "disaggregate_by_1", selected = NULL)
-  #   updateSelectInput(session, "disaggregate_by_2", selected = NULL)
-  #   output$analysis_status <- renderText("")  # Clear status
-  #   output$progress_bar <- renderUI(NULL)  # Clear progress bar
-  # })
-  # 
-  # UI element for switching data source
-  # output$data_source_selector <- renderUI({
-  #   selectInput("selected_data_source", 
-  #               "Choose Data Source:", 
-  #               choices = c("Clean/Aggregated Data" = "data_in", "Analyzed Data" = "analysis_data_out"))
-  # })
-  # 
-  # Reactive dataset that switches based on user input
-  # active_data <- reactive({
-  #   if (input$selected_data_source == "data_in") {
-  #     data_in()
-  #   } else {
-  #     analysis_data_out()
-  #   }
-  # })
+
   
   
   # Populate column choices for x_axis and y_axis based on uploaded data
@@ -931,97 +931,7 @@ server <- function(input, output, session) {
     p
   })
   
-  output$download_data <- downloadHandler(
-    filename = function() {
-      paste(
-        if (input$view_type == "raw") {
-          "raw_data_"
-        } else if (input$view_type == "analysis") {
-          "analysis_data_"
-        } else {
-          "aggregated_data_"
-        },
-        Sys.Date(), ".xlsx", sep = ""
-      )
-    },
-    content = function(file) {
-      wb <- createWorkbook()
-      
-      # Determine worksheet name and data based on view_type
-      if (input$view_type == "raw") {
-        sheet_name <- "Raw Data"
-        data_to_write <- data_in()
-      } else if (input$view_type == "analysis") {
-        sheet_name <- "Analysis Data"
-        data_to_write <- df_res_labelled_reactive()
-      } else { # view_type == "aggregated"
-        sheet_name <- "Aggregated Data"
-        data_to_write <- df_aggregated_react()  # Use the reactive expression here
-      }
-      
-      # Write data to the worksheet
-      addWorksheet(wb, sheet_name)
-      writeData(wb, sheet_name, data_to_write)
-      
-      # Save workbook
-      saveWorkbook(wb, file, overwrite = TRUE)
-    }
-  )
-  
-  output$download_aggregated_data <- downloadHandler(
-    filename = function() {
-      paste("aggregated_data_", Sys.Date(), ".xlsx", sep = "")
-    },
-    content = function(file) {
-      wb <- createWorkbook()
-      sheet_name <- "Aggregated Data"
-      data_to_write <- df_aggregated_react()  # Reactive expression for aggregated data
-      
-      # Write data to the worksheet
-      addWorksheet(wb, sheet_name)
-      writeData(wb, sheet_name, data_to_write)
-      
-      # Save workbook
-      saveWorkbook(wb, file, overwrite = TRUE)
-    }
-  )
-  # Server-side logic for downloading analysis data
-  output$download_analysis_data <- downloadHandler(
-    filename = function() {
-      paste("analysis_data_", Sys.Date(), ".xlsx", sep = "")
-    },
-    content = function(file) {
-      wb <- createWorkbook()
-      sheet_name <- "Analysis Data"
-      data_to_write <- df_res_labelled_reactive()  # Reactive expression for analysis data
-      
-      # Write data to the worksheet
-      addWorksheet(wb, sheet_name)
-      writeData(wb, sheet_name, data_to_write)
-      
-      # Save workbook
-      saveWorkbook(wb, file, overwrite = TRUE)
-    }
-  )
-  # Server-side logic for downloading analysis data
-  output$download_analysis_data <- downloadHandler(
-    filename = function() {
-      paste("analysis_data_", Sys.Date(), ".xlsx", sep = "")
-    },
-    content = function(file) {
-      wb <- createWorkbook()
-      sheet_name <- "Analysis Data"
-      data_to_write <- df_res_labelled_reactive()  # Reactive expression for analysis data
-      
-      # Write data to the worksheet
-      addWorksheet(wb, sheet_name)
-      writeData(wb, sheet_name, data_to_write)
-      
-      # Save workbook
-      saveWorkbook(wb, file, overwrite = TRUE)
-    }
-  )
-  
+
   
   
 } # server end

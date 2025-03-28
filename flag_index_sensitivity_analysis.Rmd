@@ -1,0 +1,591 @@
+---
+title: "Settlement Severity Index"
+subtitle: "Sensitivity Analysis"
+output:
+  html_document: 
+    toc: true
+    toc_depth: 4
+    toc_float: true
+    theme: readable
+    fig_width: 8
+    fig_height: 6
+  word_document:
+    toc: no
+    toc_depth: '2'
+    output_dir: "Outputs"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+author: "GEU R&D"
+params:
+  admin_level_index: NULL
+  selected_index_method: NULL
+  data_file: NULL
+editor_options: 
+  chunk_output_type: console
+  markdown: 
+    wrap: 72
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, eval=T, include=F, warning=F, message=F, cache.lazy = T)
+```
+
+```{r Packages}
+gc()
+getwd()
+library(pacman)
+p_load(tidyverse, here, lubridate, janitor, httr, jsonlite, openxlsx, readxl, jmv, skimr, fuzzyjoin, zoo, broom, psych, epiR, hrbrthemes, rcompanion, knitr, stringr, KoboconnectR, robotoolbox, tidylog, viridis, RColorBrewer, impactR.analysis, srvyr, spdep, sp, ggcorrplot, ggridges, dplyr, kableExtra)
+```
+
+
+```{r Parameters to modify}
+input_path <- "input/"
+output_path <- "output/"
+
+# list.files(output_path)
+
+# admin_boundaries <- c("admin0", "admin1", "admin2", "admin3", "localite_final")
+# admin_boundaries <- c("admin0", "admin1", "admin2", "info_settlement_final")
+# admin_boundaries <- c("info_state", "info_county", "info_payam", "info_settlement_final")
+admin_boundaries <- c("admin1", "admin2","admin3", "admin4")
+
+# country <- "ssd"
+# country <- "ssd"
+
+# date_round <- "2024_11"
+
+```
+
+```{r Importing the data}
+
+## To run this script one can use the data that resulted from the previous script ( Script 1 )
+# data_index <- read.xlsx("Outputs/SSI_Clean_Sahel.xlsx")
+
+local <- interactive() || knitr::is_html_output()  # Adjust based on your case
+
+if (local){
+
+  data_index <- read_excel(list.files(output_path, pattern="severity_index", full.names = T), sheet="Raw data") %>% 
+    mutate(severity_value = as.numeric(severity_value))
+  
+} else {
+  
+  data_index <- readRDS(params$data_file) %>% 
+    mutate(severity_value = as.numeric(severity_value))
+  
+}
+
+
+
+
+```
+
+# Sensitivity Analysis {.tabset}
+
+
+
+## Missing Values
+
+It is highly suggested to do a distribution of the missing values. The Flag Index counts the number of indicators that go above a defined severity thresholds. One needs to make sure that whatever is not being counted is "not severe" and not missing values.
+
+Therefore, it is important to look at the distribution of missing values. 
+
+
+```{r flag_na non-barriers}
+
+data_na <- data_index %>% 
+	filter(is.na(severity_value)==T)
+
+```
+
+```{r flag_na plot, include=TRUE}
+
+if (nrow(data_na) == 0) {
+  ggplot() +
+    annotate("text", x = 1, y = 1, label = "No NA values in this Index :)", size = 6, hjust = 0.5, vjust = 0.5) +
+    theme_void() +
+    labs(title = NULL, x = NULL, y = NULL)
+} else {
+  ggplot(data = data_na, aes(x = question)) + 
+    geom_bar() + 
+    coord_flip() +
+    labs(title = "Distribution of NAs Across Questions",
+         x = "Question",
+         y = "Number of NAs") +
+    theme_minimal()
+}
+
+
+```
+
+
+## Severity Frequency
+
+The goal of this section is to look at how often each indicator is above the severity thresholds. The thresholds are 3, 4 and 4+, which is why the bar plot is repeated three times. It is important to look at the overall distribution of each indicator, because an indicator that is very often extremely severe might be due to a wrongly-set threshold. On the contrary, it might also be that the situation is indeed very severe in most of the country. This is why contextual knowledge is key in the definition of the thresholds.
+
+```{r Plot above three, include=TRUE}
+
+## I filter the data so to have only the indicators above three
+
+data_3 <- data_index %>%
+  filter(flag3 == 1) %>%  # Filter rows where flag3 is 1
+  group_by(across(admin_boundaries), question, sector) %>%   # Group by question
+  summarize(count = n())   # Count occurrences
+
+## I create the colour palette
+custom_colors <- c(
+  "fsl" = "#F08080",        # Light Coral (softer red)
+  "shl" = "#D2B48C",        # Tan (softer brown)
+  "wsh" = "#ADD8E6",        # Light Blue (soft water-related color)
+  "hea" = "#DDA0DD",        # Plum (soft purple)
+  "pop" = "#FFD700",        # Light Gold (softer yellow)
+  "pro" = "#A9A9A9",        # Dark Gray (soft neutral tone)
+  "cm" = "#F4A460",         # Sandy Brown (softer tan)
+  "edu" = "#90EE90"         # Light Green (soft green)
+)
+
+## I order the questions by count
+
+plot_three <- ggplot(data = data_3, aes(x = reorder(question, count, FUN = sum), y = count, fill = sector)) + 
+  geom_bar(stat = "identity") +  # Use stat = "identity" to use y values as heights
+  coord_flip() +                 # Flip coordinates for horizontal bars
+  labs(title = "Distribution of Indicators above level 3 Severity",
+       x = "Indicators",
+       y = "Number of Settlements") +
+  scale_fill_manual(values = custom_colors) +  # Apply custom colors
+  theme_minimal()   
+
+plot_three
+```
+
+```{r Plot above four, include=TRUE}
+
+## I filter the data so to have only the indicators above four
+
+data_4 <- data_index %>%
+  filter(flag4 == 1) %>%  # Filter rows where flag4 is 1
+  group_by(across(admin_boundaries), question, sector) %>%   # Group by question
+  summarize(count = n())   # Count occurrences
+
+## I order the questions by count
+
+plot_four <- ggplot(data = data_4, aes(x = reorder(question, count, FUN = sum), y = count, fill = sector)) + 
+  geom_bar(stat = "identity") +  # Use stat = "identity" to use y values as heights
+  coord_flip() +                 # Flip coordinates for horizontal bars
+  labs(title = "Distribution of Indicators above level 4 Severity",
+       x = "Indicators",
+       y = "Number of Settlements") +
+  scale_fill_manual(values = custom_colors) +
+  theme_minimal()  
+
+plot_four
+```
+
+```{r plot above four plus, include=TRUE}
+
+## I filter the data so to have only the indicators above four
+
+data_4_plus <- data_index %>%
+  filter(flag4_plus == 1) %>%  # Filter rows where flag4_plus is 1
+  group_by(across(admin_boundaries), question, sector) %>%   # Group by question
+  summarize(count = n())   # Count occurrences
+
+## I order the questions by count
+
+plot_four_plus <- ggplot(data = data_4_plus, aes(x = reorder(question, count, FUN = sum), y = count, fill = sector)) + 
+  geom_bar(stat = "identity") +  # Use stat = "identity" to use y values as heights
+  coord_flip() +                 # Flip coordinates for horizontal bars
+  labs(title = "Distribution of Indicators above level 4+ Severity",
+       x = "Indicators",
+       y = "Number of Settlements") +
+  scale_fill_manual(values = custom_colors) +
+  theme_minimal()  
+
+plot_four_plus
+```
+
+## Distribution
+
+The goal of this section is to look at the distribution of the flag index across settlements. Unlike the previous section where we assessed how often each indicator is above each threshold, in this section we look at the distribution of the flag index across settlements. 
+
+```{r Flag Index Plot, include=T}
+
+data_settlement <- data_index %>%
+	select(all_of(admin_boundaries), contains('settlement')) %>% unique()
+
+# ggplot(dat = data_settlement, aes(x = flag3_settlement)) + 
+#   # coord_flip() +
+#   geom_bar() + 
+#   labs(title = "Distribution of Flag 3 Index  across settlements",
+#        x = "Number of Indicators",
+#        y = "Number of Settlements") +
+#   theme_minimal()
+
+# hist(data_settlement$proportion3_settlement)
+
+ggplot(dat = data_settlement, aes(x = proportion3_settlement)) + 
+  # coord_flip() +
+  geom_bar() + 
+  labs(title = "Histogram of Ratio 3 Index across settlements",
+       x = "Ratio of indicators that passed the Flag 3 Index",
+       y = "Number of Settlements") +
+  theme_minimal()
+
+```
+
+```{r Flag Index Plot 4, include=T}
+
+# ggplot(dat = data_settlement, aes(x = flag4_settlement)) + 
+#   # coord_flip() +
+#   geom_bar() + 
+#   labs(title = "Distribution of Flag 4 Index across settlements",
+#        x = "# of Indicators",
+#        y = "# of Settlements") +
+#   theme_minimal()
+
+ggplot(dat = data_settlement, aes(x = proportion4_settlement)) + 
+  # coord_flip() +
+  geom_bar() + 
+  labs(title = "Histogram of Ratio 4 Index across settlements",
+       x = "Ratio of indicators that passed the Flag 4 Index",
+       y = "# of Settlements") +
+  theme_minimal()
+
+```
+
+```{r Flag Index Plot 4 plus, include=T}
+
+# ggplot(dat = data_settlement, aes(x = flag4_plus_settlement)) + 
+#   # coord_flip() +
+#   geom_bar() + 
+#   labs(title = "Distribution of Flag 4+ Index across settlements",
+#        x = "# of Indicators",
+#        y = "# of Settlements") +
+#   theme_minimal()
+# %>% filter(proportion4_plus_settlement!=0),
+
+ggplot(dat = data_settlement,  aes(x = proportion4_plus_settlement)) + 
+  # coord_flip() +
+  geom_bar() + 
+  labs(title = "Histogram of Ratio 4+ Index across settlements",
+       x = "Ratio of indicators that passed the Flag 4+ Index",
+       y = "# of Settlements") +
+  theme_minimal()
+```
+
+
+## Sector information
+
+The goal of this section is to look at the maximum number of indicators that are above the severity thresholds per each sector. Please, keep in mind that some sectors cannot go beyond level 3 or 4 of severity. 
+
+Each bar plot shows the maximum observed value of the flag index per each sector per each level of severity. 
+
+
+```{r Preparing the data}
+
+max_values <- data_index %>%
+  group_by(sector) %>%
+  summarize(
+    max_flag4_plus = max(flag4_plus_sector, na.rm = TRUE),
+    max_flag4 = max(flag4_sector, na.rm = TRUE),
+    max_flag3 = max(flag3_sector, na.rm = TRUE)
+  ) %>%
+  arrange(desc(max_flag4_plus)) 
+
+
+```
+
+```{r Plot Max Flags, include=TRUE}
+
+ggplot(max_values, aes(x=sector, y=max_flag4_plus)) + 
+  geom_bar(stat = "identity") +
+  labs(title = "Maximum Number of Indicators >= 4+ plus per sector",
+       x = "Number of Indicators",
+       y = "sector") +
+  theme_minimal()
+
+ggplot(max_values, aes(x=sector, y=max_flag4)) + 
+  geom_bar(stat = "identity") +
+  labs(title = "Maximum Number of Indicators >= 4 per sector",
+       x = "Number of Indicators",
+       y = "sector") +
+  theme_minimal()
+
+ggplot(max_values, aes(x=sector, y=max_flag3)) + 
+  geom_bar(stat = "identity") +
+  labs(title = "Maximum Number of Indicators >=3 per sector",
+       x = "Number of Indicators",
+       y = "sector") +
+  theme_minimal()
+
+```
+
+This plots can be interpreted as the maximum number of indicators that can pass the different severity thresholds, in other words, the maximum possible severity of each sector. This information can be useful in the case of normalisation. 
+
+## Distributions and Correlations {.tabset}
+
+In this section, we explore the distribution of the indicators, how often each value is picked up by the data. Furthermore, we run correlation matrices across indicators to see the relationship between indicators. 
+To make the analysis more comprehensible, we'll divide the indicators by sector. 
+
+### WASH 
+
+```{r wash sensitivity, include=T}
+
+# I want to plot the mean of severity_value per each indicator 
+
+data_sector <- data_index %>%
+  filter(sector == "wsh")
+
+ggplot(data_sector, aes(x = severity_value, y = question, fill = question)) +
+  geom_density_ridges() +
+  theme_ridges() + 
+  theme(legend.position = "none")
+
+
+```
+
+```{r Covariance Matrix wash, include=T}
+
+## I put the data in the wide format
+data_sector_wide <- data_sector %>%
+  select(all_of(admin_boundaries), question, severity_value) %>%
+  pivot_wider(names_from = question, values_from = severity_value) %>% 
+		select(-all_of(admin_boundaries))
+
+sector_corr <- cor(data_sector_wide, use = "complete.obs")
+
+
+## I plot the correlation matrix
+library(corrplot)
+corrplot(sector_corr, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
+```
+
+### FSL
+
+```{r fsl sensitivity, include=T}
+
+# I want to plot the mean of severity_value per each indicator 
+
+data_sector <- data_index %>%
+  filter(sector == "fsl")
+
+ggplot(data_sector, aes(x = severity_value, y = question, fill = question)) +
+  geom_density_ridges() +
+  theme_ridges() + 
+  theme(legend.position = "none")
+
+```
+
+```{r Covariance Matrix fsl, include=T}
+
+## I put the data in the wide format
+
+data_sector_wide <- data_sector %>%
+  select(all_of(admin_boundaries), question, severity_value) %>%
+  pivot_wider(names_from = question, values_from = severity_value) %>% 
+		select(-all_of(admin_boundaries))
+
+sector_corr <- cor(data_sector_wide, use = "complete.obs")
+
+
+## I plot the correlation matrix
+library(corrplot)
+corrplot(sector_corr, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
+```
+
+### Health
+
+```{r Health sensitivity, include=T}
+
+# I want to plot the mean of severity_value per each indicator 
+
+data_sector <- data_index %>%
+  filter(sector == "hea")
+
+ggplot(data_sector, aes(x = severity_value, y = question, fill = question)) +
+  geom_density_ridges() +
+  theme_ridges() + 
+  theme(legend.position = "none")
+
+```
+
+```{r Covariance Matrix health, include=T}
+
+## I put the data in the wide format
+
+data_sector_wide <- data_sector %>%
+  select(all_of(admin_boundaries), question, severity_value) %>%
+  pivot_wider(names_from = question, values_from = severity_value) %>% 
+		select(-all_of(admin_boundaries))
+
+sector_corr <- cor(data_sector_wide, use = "complete.obs")
+
+
+## I plot the correlation matrix
+library(corrplot)
+corrplot(sector_corr, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
+```
+
+### Shelter
+
+```{r shelter sensitivity, include=T}
+
+# I want to plot the mean of severity_value per each indicator 
+
+data_sector <- data_index %>%
+  filter(sector == "shl")
+
+ggplot(data_sector, aes(x = severity_value, y = question, fill = question)) +
+  geom_density_ridges() +
+  theme_ridges() + 
+  theme(legend.position = "none")
+
+```
+
+```{r Covariance Matrix shelter, include=T}
+
+## I put the data in the wide format
+
+data_sector_wide <- data_sector %>%
+  select(all_of(admin_boundaries), question, severity_value) %>%
+  pivot_wider(names_from = question, values_from = severity_value) %>% 
+		select(-all_of(admin_boundaries))
+
+sector_corr <- cor(data_sector_wide, use = "complete.obs")
+
+
+## I plot the correlation matrix
+library(corrplot)
+corrplot(sector_corr, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
+```
+
+### Protection
+
+```{r pro sensitivity, include=T}
+
+# I want to plot the mean of severity_value per each indicator 
+
+data_sector <- data_index %>%
+  filter(sector == "pro")
+
+ggplot(data_sector, aes(x = severity_value, y = question, fill = question)) +
+  geom_density_ridges() +
+  theme_ridges() + 
+  theme(legend.position = "none")
+
+```
+
+```{r Covariance Matrix pro, include=T}
+
+## I put the data in the wide format
+
+data_sector_wide <- data_sector %>%
+  select(all_of(admin_boundaries), question, severity_value) %>%
+  pivot_wider(names_from = question, values_from = severity_value) %>% 
+		select(-all_of(admin_boundaries))
+
+sector_corr <- cor(data_sector_wide, use = "complete.obs")
+
+
+## I plot the correlation matrix
+library(corrplot)
+corrplot(sector_corr, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
+```
+
+### Education
+
+```{r education sensitivity, include=T}
+
+# I want to plot the mean of severity_value per each indicator 
+
+data_sector <- data_index %>%
+  filter(sector == "edu")
+
+ggplot(data_sector, aes(x = severity_value, y = question, fill = question)) +
+  geom_density_ridges() +
+  theme_ridges() + 
+  theme(legend.position = "none")
+
+```
+
+```{r Covariance Matrix education, include=T}
+
+data_sector_wide <- data_sector %>%
+  select(all_of(admin_boundaries), question, severity_value) %>%
+  pivot_wider(names_from = question, values_from = severity_value) %>% 
+	select(-all_of(admin_boundaries))
+
+sector_corr <- cor(data_sector_wide, use = "complete.obs")
+
+## I plot the correlation matrix
+library(corrplot)
+corrplot(sector_corr, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
+```
+
+### Population Movement
+
+```{r pop sensitivity, include=T}
+
+# I want to plot the mean of severity_value per each indicator 
+
+data_sector <- data_index %>%
+  filter(sector == "pop")
+
+ggplot(data_sector, aes(x = severity_value, y = question, fill = question)) +
+  geom_density_ridges() +
+  theme_ridges() + 
+  theme(legend.position = "none")
+
+```
+
+```{r Covariance Matrix pop, include=T}
+
+## I put the data in the wide format
+
+data_sector_wide <- data_sector %>%
+  select(all_of(admin_boundaries), question, severity_value) %>%
+  pivot_wider(names_from = question, values_from = severity_value) %>% 
+	select(-all_of(admin_boundaries))
+
+sector_corr <- cor(data_sector_wide, use = "complete.obs")
+
+
+## I plot the correlation matrix
+library(corrplot)
+corrplot(sector_corr, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
+```
+
+### Cash and Market 
+
+```{r cm sensitivity, include=T}
+
+# I want to plot the mean of severity_value per each indicator 
+
+data_sector <- data_index %>%
+  filter(sector == "cm")
+
+ggplot(data_sector, aes(x = severity_value, y = question, fill = question)) +
+  geom_density_ridges() +
+  theme_ridges() + 
+  theme(legend.position = "none") + 
+	labs(title="Cash & Markets")
+
+```
+
+```{r Covariance Matrix cm, include=T}
+
+## I put the data in the wide format
+
+data_sector_wide <- data_sector %>%
+  select(all_of(admin_boundaries), question, severity_value) %>%
+  pivot_wider(names_from = question, values_from = severity_value) %>% 
+	select(-all_of(admin_boundaries))
+
+
+sector_corr <- tryCatch(cor(data_sector_wide, use = "complete.obs"), 
+                         error = function(e) matrix(NA, nrow = 1, ncol = 1))
+
+if (is.na(sector_corr[1, 1])) {
+  message("No data available for correlation.")
+} else {
+  corrplot(sector_corr, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
+}
+```
