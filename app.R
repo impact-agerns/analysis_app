@@ -1,7 +1,6 @@
 # Required Libraries
 # gc()
 library(pacman)
-
 p_load(shiny, shinydashboard, writexl, dplyr, readxl, openxlsx, janitor, tidyverse, purrr, DT, markdown)
 source('src/server_functions/functions.R', local=T)
 source('src/server_functions/Mode.R', local=T)
@@ -549,13 +548,13 @@ server <- function(input, output, session) {
     saveRDS(analysis_data_out(), file = temp_file)
     
     
-    rmarkdown::render("generate_report.Rmd", output_file = "analysis_output.html", 
+    rmarkdown::render("src/generate_report.Rmd", output_file = "analysis_output.html", 
                       params = list(
       selected_disag_vals = input$report_disag_val,
       selected_questions = input$report_questions,
       data_file = temp_file
     ))
-    output$msg_report_generated_success <- renderText("Report generated successfully!")
+    output$msg_report_generated <- renderText("Report generated successfully!")
     
   })
   
@@ -665,13 +664,21 @@ server <- function(input, output, session) {
       
     })
 
+    # library(readxl)
+    # list.files('input/data', full.names = T)
+    # dap <- read_excel(list.files('input/data', full.names = T,pattern="SI_DAP_v2"))
+    # tot_indicators <- dap %>% 
+    
+      
     tot_indicators <- severity_dap() %>%
         mutate(question = str_remove(question, "\\..*")) %>%
-        pull(question) %>% unique()
-    len_all_indicators <- length(tot_indicators)
+        select(question, sector) %>% unique()
     
-    data_index_clean <- data_index() %>% 
-      inner_join(severity_dap(), by = c("question", "choice")) %>% 
+    num_sec_indicators <- tot_indicators %>% group_by(sector) %>% summarise(total_ind_per_sector = n())
+    len_all_indicators <- length(tot_indicators %>% select(question) %>% unique() %>% pull())
+    
+    data_index_clean <- data_index() %>%
+      inner_join(severity_dap(), by = c("question", "choice")) %>%
       max_aggregate_sm(severity_dictionary = severity_dap(), admin_bounds = official_admin_boundaries) %>% 
       ungroup() %>% 
       mutate(total_number_core_indicators = len_all_indicators)
@@ -711,23 +718,23 @@ server <- function(input, output, session) {
     }
     if ("proportion3" %in% selected_methods) {
       data_index_clean <- data_index_clean %>%
-        add_proportion3_per_sector(official_admin_boundaries) %>% 
+        add_proportion3_per_sector(official_admin_boundaries, num_sec_indicators) %>% 
         add_proportion3_per_settlement(official_admin_boundaries, len_all_indicators = len_all_indicators) %>% 
-        add_mean_proportion3_area(official_admin_boundaries)
+        add_mean_proportion3_area(official_admin_boundaries, len_all_indicators)
       print('added proportion3 index')
     }
     if ("proportion4" %in% selected_methods) {
       data_index_clean <- data_index_clean %>%
-        add_proportion4_per_sector(official_admin_boundaries) %>% 
+        add_proportion4_per_sector(official_admin_boundaries, num_sec_indicators) %>% 
         add_proportion4_per_settlement(official_admin_boundaries, len_all_indicators = len_all_indicators) %>% 
-        add_mean_proportion4_area(official_admin_boundaries)
+        add_mean_proportion4_area(official_admin_boundaries, len_all_indicators)
       print('added proportion4 index')
     }
     if ("proportion4+" %in% selected_methods) {
       data_index_clean <- data_index_clean %>%
-        add_proportion4_plus_per_sector(official_admin_boundaries) %>% 
+        add_proportion4_plus_per_sector(official_admin_boundaries, num_sec_indicators) %>% 
         add_proportion4_plus_per_settlement(official_admin_boundaries, len_all_indicators = len_all_indicators) %>% 
-        add_mean_proportion4_plus_area(official_admin_boundaries)
+        add_mean_proportion4_plus_area(official_admin_boundaries,len_all_indicators)
       print('added proportion4+ index')
     }
     if ("score" %in% selected_methods) {
@@ -737,6 +744,9 @@ server <- function(input, output, session) {
         add_area_score_index_proportion_25(official_admin_boundaries)
       print('added Score Index')
     }
+    # data_index_clean <- reduce(outputs, left_join, by = names(data_index_clean))
+
+    
     
     raw <- data_index_clean
     indicator <- data_index_clean %>% select(-contains('area'), -contains('sector'), -contains('settlement'))
@@ -785,9 +795,8 @@ server <- function(input, output, session) {
     saveRDS(data_index_out(), file = temp_file)
     
     
-    rmarkdown::render("severity_html.Rmd", output_file = "severity_index_summary.html", 
+    rmarkdown::render("severity_html.Rmd", output_file = "severity_html.html", 
                       params = list(
-                        select_admin_bounds = input$select_admin_bounds,
                         admin_level_index = input$admin_level_index,
                         selected_index_method = input$selected_index_method,
                         data_file = temp_file
@@ -795,10 +804,10 @@ server <- function(input, output, session) {
     output$msg_report_generated <- renderText("Report generated successfully!")
     
     output$download_index_html <- downloadHandler(
-      filename = "severity_index_summary.html",
+      filename = "severity_index.html",
       content = function(file) {
         req(input$generate_index_html)
-        file.copy("severity_index_summary.html", file, overwrite = TRUE)
+        file.copy("severity_index.html", file, overwrite = TRUE)
       }
     )
     
@@ -820,7 +829,7 @@ server <- function(input, output, session) {
     saveRDS(data_index_out(), file = temp_file)
     
     
-    rmarkdown::render("flag_index_sensitivity_analysis.Rmd", output_file = "flag_index_sensitvity_analysis.html", 
+    rmarkdown::render("src/flag_index_sensitivity_analysis.Rmd", output_file = "flag_index_sensitvity_analysis.html", 
                       params = list(
                         admin_level_index = input$admin_level_index,
                         selected_index_method = input$selected_index_method,

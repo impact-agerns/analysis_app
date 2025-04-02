@@ -21,8 +21,7 @@ library(ggplot2)
 library(dplyr)
 library(readxl)
 library(tidyverse)
-library(kableExtra)
-library(gridExtra)
+
 
 knitr::opts_chunk$set(
   echo = FALSE,      # Hide code in the output
@@ -83,7 +82,7 @@ The results below show the top 10 values in terms of severity at indicator, sect
 for (method in selected_methods) {
   # method <- "flag3"
   cat(paste0("\n#### ", method, " {.tabset}\n"))
-  method <- "flag4"
+  # method <- "flag4"
   
   ranking_var <- if (method == "score") {
     "severity_value"
