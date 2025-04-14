@@ -1,7 +1,8 @@
 # Required Libraries
 # gc()
 library(pacman)
-p_load(shiny, shinydashboard, writexl, dplyr, readxl, openxlsx, janitor, tidyverse, purrr, DT, markdown)
+p_load(shiny, shinydashboard, writexl, dplyr, readxl, openxlsx, janitor, tidyverse, purrr, DT, markdown, 
+       kableExtra, shinyWidgets)
 source('src/server_functions/functions.R', local=T)
 source('src/server_functions/Mode.R', local=T)
 source('src/server_functions/process_data_for_aggregation.R', local=T)
@@ -538,23 +539,26 @@ server <- function(input, output, session) {
     
     # Define the file path
     if (Sys.getenv("SHINY_PORT") != "") {
-      # Running on shinyapps.io → Use temp directory
+      # Running on shinyapps.io b Use temp directory
       temp_file <- file.path(tempdir(), "analysis_data.rds")
+      cat(temp_file, "\n")
+      
     } else {
-      # Running locally → Use a local folder
+      # Running locally b Use a local folder
       temp_file <- "analysis_data.rds"
+      cat(temp_file, "\n")
     }
     
     saveRDS(analysis_data_out(), file = temp_file)
+    cat("Data saved to temp file: ", temp_file, "\n")
     
-    
-    rmarkdown::render("src/generate_report.Rmd", output_file = "analysis_output.html", 
+    rmarkdown::render("generate_report.Rmd", output_file = "analysis_output.html", 
                       params = list(
       selected_disag_vals = input$report_disag_val,
       selected_questions = input$report_questions,
       data_file = temp_file
     ))
-    output$msg_report_generated <- renderText("Report generated successfully!")
+    output$msg_data_report_generated <- renderText("Report generated successfully!")
     
   })
   
@@ -591,13 +595,17 @@ server <- function(input, output, session) {
       undac_si_dap <- read_excel(list.files('input/data/', pattern="standard_si_dap", full.names = T), sheet="standard_undac_si_dap") %>% 
         mutate(source = "undac_ib")
       sources <- bind_rows(aok_si_dap_clean, undac_si_dap) %>% unique() %>% 
-        rename(choice_label_standard = choice_label, question_label_standard = question_label)
+        rename(choice_label_standard = choice_label, question_label_standard = question_label) %>% 
+        group_by(question) %>% 
+        mutate(exists = sum(severity_value, na.rm=T)) %>% 
+        filter(exists >= 0) %>% select(-exists) %>% ungroup()
+
       
       dap_template <- combine_tool_global_label(survey = survey_data(), 
                                                 responses = choices_data(), 
                                                 label_col = label_global()) %>% 
         select(question = name, question_label = label, type = q.type, choice = name.choice, choice_label = label.choice) %>% 
-        left_join(sources, by=c("question", "choice", "type")) %>% 
+        inner_join(sources, by=c("question", "choice", "type")) %>% 
         filter(!str_detect(question, 'admin|role|consent|age'))
       
       
@@ -785,17 +793,17 @@ server <- function(input, output, session) {
     
     # Define the file path
     if (Sys.getenv("SHINY_PORT") != "") {
-      # Running on shinyapps.io → Use temp directory
+      # Running on shinyapps.io b Use temp directory
       temp_file <- file.path(tempdir(), "index_data.rds")
     } else {
-      # Running locally → Use a local folder
-      temp_file <- "index_data.rds"
+      # Running locally b Use a local folder
+      temp_file <- "markdown/index_data.rds"
     }
     
     saveRDS(data_index_out(), file = temp_file)
     
     
-    rmarkdown::render("severity_html.Rmd", output_file = "severity_html.html", 
+    rmarkdown::render("severity_html.Rmd", output_file = "severity_index.html", 
                       params = list(
                         admin_level_index = input$admin_level_index,
                         selected_index_method = input$selected_index_method,
@@ -819,17 +827,20 @@ server <- function(input, output, session) {
     
     # Define the file path
     if (Sys.getenv("SHINY_PORT") != "") {
-      # Running on shinyapps.io → Use temp directory
+      # Running on shinyapps.io b Use temp directory
       temp_file <- file.path(tempdir(), "index_data.rds")
+      cat(temp_file, "\n")
     } else {
-      # Running locally → Use a local folder
+      # Running locally b Use a local folder
       temp_file <- "index_data.rds"
+      cat(temp_file, "\n")
+      
     }
     
     saveRDS(data_index_out(), file = temp_file)
+    cat("Data saved to temp file: ", temp_file, "\n")
     
-    
-    rmarkdown::render("src/flag_index_sensitivity_analysis.Rmd", output_file = "flag_index_sensitvity_analysis.html", 
+    rmarkdown::render("flag_index_sensitivity_analysis.Rmd", output_file = "flag_index_sensitvity_analysis.html", 
                       params = list(
                         admin_level_index = input$admin_level_index,
                         selected_index_method = input$selected_index_method,

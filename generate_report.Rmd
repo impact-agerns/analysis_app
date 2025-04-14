@@ -41,22 +41,13 @@ knitr::opts_chunk$set(
 )
 
 
-
-# Load Data
-
-# test <- data %>% 
-#   filter(str_detect(label, "what are the main reason")) %>% 
-#   filter(disag_val_1=="SS0202") %>% 
-#   pull(label)
-# %>% 
-#   mutate(mean = mean * 100) 
-# %>% 
-#     filter(label %in% params$selected_questions, disag_val_1 %in% params$selected_disag_vals)
 local <- F
 
 
 if (local==T){
 data <- read_excel(list.files('input', pattern="analysis_data_test", full.names = TRUE)) 
+# data <- readRDS(params$data_file)
+
 params <- NULL
 params$selected_disag_vals <- c("JM01060", "JM02006")
 # params$selected_questions <- "What are the main problems with water in ${info_settlement_final}?"

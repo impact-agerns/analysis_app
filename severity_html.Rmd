@@ -40,8 +40,8 @@ knitr::opts_chunk$set(
 local <- interactive() || knitr::is_html_output()  # Adjust based on your case
 
 if (local) {
-  data <- read_excel("output/severity_index_data_ssdr3.xlsx", sheet = "Raw data")
-  selected_methods <- c("flag3", "score")
+  # data <- read_excel("output/severity_index_data_ssdr3.xlsx", sheet = "Raw data")
+  # selected_methods <- c("flag3", "score")
   
   data <- readRDS('index_data.rds')
   selected_methods <- c("flag4", "score")

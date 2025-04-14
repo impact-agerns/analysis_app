@@ -191,7 +191,7 @@ ui <- shinyUI(
                                          choices = NULL, multiple = TRUE),
                              actionButton("generate_html", "Generate HTML Report"),
                              downloadButton("download_report_html", "Download HTML Report"),
-                             verbatimTextOutput("msg_report_generated_success")
+                             verbatimTextOutput("msg_data_report_generated")
                              
                            )
                     )

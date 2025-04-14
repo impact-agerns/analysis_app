@@ -32,14 +32,14 @@ knitr::opts_chunk$set(echo = F, eval=T, include=F, warning=F, message=F, cache.l
 gc()
 getwd()
 library(pacman)
-p_load(tidyverse, here, lubridate, janitor, httr, jsonlite, openxlsx, readxl, jmv, skimr, fuzzyjoin, zoo, broom, psych, epiR, hrbrthemes, rcompanion, knitr, stringr, KoboconnectR, robotoolbox, tidylog, viridis, RColorBrewer, impactR.analysis, srvyr, spdep, sp, ggcorrplot, ggridges, dplyr, kableExtra)
+p_load(tidyverse, openxlsx, readxl, ggridges, corrplot, kableExtra)
 ```
 
 
 ```{r Parameters to modify}
 input_path <- "input/"
 output_path <- "output/"
-
+# output_path <- "src"
 # list.files(output_path)
 
 # admin_boundaries <- c("admin0", "admin1", "admin2", "admin3", "localite_final")
@@ -58,12 +58,11 @@ admin_boundaries <- c("admin1", "admin2","admin3", "admin4")
 
 ## To run this script one can use the data that resulted from the previous script ( Script 1 )
 # data_index <- read.xlsx("Outputs/SSI_Clean_Sahel.xlsx")
-
 local <- interactive() || knitr::is_html_output()  # Adjust based on your case
 
 if (local){
 
-  data_index <- read_excel(list.files(output_path, pattern="severity_index", full.names = T), sheet="Raw data") %>% 
+  data_index <- read_excel(list.files('markdown/',pattern="severity_index_data_ssdr3", full.names = T), sheet="Raw data") %>% 
     mutate(severity_value = as.numeric(severity_value))
   
 } else {
@@ -72,9 +71,6 @@ if (local){
     mutate(severity_value = as.numeric(severity_value))
   
 }
-
-
-
 
 ```
 
