@@ -1,0 +1,290 @@
+---
+title: "Severity Index Report"
+output:
+  html_document:
+    toc: false
+    toc_float: false
+    theme: flatly
+params:
+  admin_level_index: NULL
+  selected_index_method: NULL
+  select_admin_bounds: NULL
+  data_file: NULL
+editor_options:
+  chunk_output_type: console
+---
+
+# {.tabset}
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(readxl)
+library(tidyverse)
+library(kableExtra)
+
+knitr::opts_chunk$set(
+  echo = FALSE,      # Hide code in the output
+  eval = TRUE,       # Ensure all code is executed
+  message = FALSE,   # Suppress messages (e.g., from loading packages)
+  warning = FALSE,   # Suppress warnings in the output
+  results = 'asis',  # Allow raw markdown output (useful for cat())
+  # fig.align = "center", # Center align figures
+  fig.width = 10,    # Default figure width
+  fig.height = 5,     # Default figure height
+  cache=T
+)
+
+
+# Load data
+local <- interactive() || knitr::is_html_output()  # Adjust based on your case
+
+if (local) {
+  # data <- read_excel("output/severity_index_data_ssdr3.xlsx", sheet = "Raw data")
+  # selected_methods <- c("flag3", "score")
+  
+  # data <- readRDS('markdown/index_data.rds')
+  data <- readRDS('index_data.rds')
+  selected_methods <- c("flag4")
+  
+  select_admin_bounds <- c("admin1", "admin2")
+  length(select_admin_bounds)
+  admin_level_index <- "admin2"
+  admin_level <- admin_level_index
+  
+  if (is.null(selected_methods)) selected_methods <- c("flag4")
+
+} else {
+  data <- readRDS(params$data_file)
+  selected_methods <- params$selected_index_method
+  admin_level <- params$admin_level_index[[1]]
+  
+  # belle <- data %>% 
+  #   filter(admin4=="BELLE")
+  
+  # Ensure selected index method is a vector
+}
+
+# Identify admin boundary used
+admin_boundaries <- c("admin1", "admin2", "admin3", "admin4")
+admin_boundaries <- admin_boundaries[1:length(select_admin_bounds)]
+
+if (!admin_level %in% admin_boundaries) admin_level <- "admin2"
+```
+
+## Severity Index results ranking {.tabset}
+
+The results below show the top 10 values in terms of severity at indicator, sector, settlement and area level.
+
+### Indicator {.tabset}
+```{r, result="asis"}
+for (method in selected_methods) {
+  # method <- "flag3"
+  cat(paste0("\n#### ", method, " {.tabset}\n"))
+  # method <- "flag4"
+  
+  ranking_var <- if (method == "score") {
+    "severity_value"
+  } else {
+    paste0(method)
+  }
+  
+  if (str_detect(method, "flag")) {
+    top_indicators <- data %>%
+      select(question, contains(ranking_var)) %>% 
+      select(-contains("sector"), -contains("settlement"), -contains("area")) %>%
+      group_by(question) %>% 
+      summarise(across(contains(ranking_var), sum, na.rm = TRUE)) %>% 
+      arrange(desc(across(contains(ranking_var)))) %>%
+      head(10) 
+    
+    kable <- top_indicators %>% 
+      rename_with(~ paste0("Number of ",method), .cols = 2) %>%
+      mutate(Rank = row_number(), .before = 1) %>% 
+      knitr::kable(format = "html") %>%
+      kableExtra::kable_styling(full_width = FALSE) %>% 
+      kable_styling(full_width = FALSE, bootstrap_options = c("hover"))
+    
+    p <-   ggplot(top_indicators, aes(x = reorder(question, !!sym(ranking_var)), y = !!sym(ranking_var))) +
+      geom_bar(stat = "identity", fill = "#EE5859") +
+      coord_flip() +
+      theme_minimal() +
+      labs(x = "", y = "Number of Flags", title = paste("Top Indicators -", method))
+    
+    
+  } else {
+    top_indicators <- data %>%
+      select(question, contains(ranking_var)) %>% 
+      select(-contains("sector"), -contains("settlement"), -contains("area")) %>%
+      group_by(question) %>% 
+      summarise(across(contains(ranking_var), mean, na.rm = TRUE)) %>% 
+      arrange(desc(across(contains(ranking_var)))) %>%
+      head(10) 
+    
+     kable<- top_indicators %>% 
+      rename_with(~ paste0("Mean ",method), .cols = 2) %>%
+      mutate(Rank = row_number(), .before = 1) %>% 
+             knitr::kable(format = "html")  %>% 
+      kableExtra::kable_styling(full_width = FALSE) %>% 
+      kable_styling(full_width = FALSE, bootstrap_options = c("hover"))
+      
+    
+    
+    p <-   ggplot(top_indicators, aes(x = reorder(question, !!sym(ranking_var)), y = !!sym(ranking_var))) +
+      geom_bar(stat = "identity", fill = "#EE5859") +
+      coord_flip() +
+      theme_minimal() +
+      labs(x = "", y = paste0("Mean ", method), title = paste("Top Indicators -", method))
+    
+  }
+  
+  cat(kable) # Ensures table is rendered correctly
+  # grid.arrange(tableGrob(kable), p, ncol = 2)
+  
+  print(p)
+  
+  
+  cat("\n\n")  # Add line breaks for clarity
+  
+  
+}
+```
+
+### Sector {.tabset}
+```{r, results='asis'}
+for (method in selected_methods) {
+  cat(paste0("\n#### ", method, " {.tabset}\n"))
+  # method <- "proportion3"
+  
+  if (method == "score") {
+    ranking_var <- paste0(method, "_index_sector")
+  } else {
+    ranking_var <- paste0(method, "_sector")
+  }
+  # ranking_var <- names(data %>% select(contains(method)))
+  
+  if (str_detect(method, "flag")) {
+    top_sector <- data %>% 
+      select(all_of(admin_boundaries), sector,ranking_var) %>% unique() %>% 
+      group_by(sector) %>% 
+      summarise(across(contains(ranking_var), sum, na.rm = TRUE)) %>%
+      arrange(desc(across(contains(ranking_var)))) %>%
+      head(10)
+    
+    kable <- top_sector %>% 
+      rename_with(~ paste0("Number of ",method), .cols = ncol(top_sector)) %>%
+      mutate(Rank = row_number(), .before = 1) %>% 
+      knitr::kable(format = "html")  %>%
+      kableExtra::kable_styling(full_width = FALSE) %>% 
+      kable_styling(full_width = FALSE, bootstrap_options = c("hover"))
+    
+    
+    p <-   ggplot(top_sector, aes(x = reorder(sector, !!sym(ranking_var)), y = !!sym(ranking_var))) +
+      geom_bar(stat = "identity", fill = "#EE5859") +
+      coord_flip() +
+      theme_minimal() +
+      labs(x = "", y = "Number of Flags", title = paste("Top Sectors -", method))
+    
+  } else {
+    top_sector <- data %>% 
+      select(all_of(admin_boundaries), sector,ranking_var) %>% unique() %>% 
+      group_by(sector) %>% 
+      summarise(across(contains(ranking_var), mean, na.rm = TRUE)) %>%
+      arrange(desc(across(contains(ranking_var)))) %>%
+      head(10)
+    
+    kable <- top_sector %>% 
+      rename_with(~ paste0("Mean ",method), .cols = ncol(top_sector)) %>%
+      mutate(Rank = row_number(), .before = 1) %>% 
+      knitr::kable(format = "html") %>%
+      kableExtra::kable_styling(full_width = FALSE) %>% 
+      kable_styling(full_width = FALSE, bootstrap_options = c("hover"))
+    
+    
+    p <-   ggplot(top_sector, aes(x = reorder(sector, !!sym(ranking_var)), y = !!sym(ranking_var))) +
+      geom_bar(stat = "identity", fill = "#EE5859") +
+      coord_flip() +
+      theme_minimal() +
+      labs(x = "", paste0("Mean ", method), title = paste("Top Sectors -", method))
+    
+  }
+  
+  cat(kable)  # Ensures table is rendered correctly
+
+  
+  print(p)
+  
+  cat("\n\n")  # Add line breaks for clarity
+  
+  
+}
+```
+
+### Settlement {.tabset}
+```{r, result="asis"}
+for (method in selected_methods) {
+  # method <- "flag4"
+  # method <- "score"
+  cat(paste0("\n#### ", method, " {.tabset}\n"))
+  
+  ranking_var <- if (method == "score") {
+    "severity_value"
+  } else {
+    ranking_var <- paste0(method, "_settlement")
+  }
+  # cat('where is the issue with the location 4?\n')
+  top_settlements <- data %>%
+    select(admin_boundaries,ranking_var) %>% unique() %>% 
+    arrange(desc(across(contains(ranking_var)))) %>%
+    head(10) %>% 
+    mutate(Rank = row_number(), .before = 1)
+  top_settlements <- top_settlements%>% 
+    rename_with(~ paste0("Value for ",method), .cols = ncol(top_settlements)) 
+  
+  kable <- top_settlements %>% knitr::kable(format = "html") %>%
+    kableExtra::kable_styling(full_width = FALSE) %>% 
+    kable_styling(full_width = FALSE, bootstrap_options = c("hover"))
+  
+    cat(kable)  # Ensures table is rendered correctly
+
+  
+  cat("\n\n")  # Add line breaks for clarity
+}
+```
+
+### Area {.tabset}
+```{r, results='asis'}
+for (method in selected_methods) {
+  cat(paste0("\n#### ", method, " {.tabset}\n"))
+
+  ranking_var <- if (method == "score") {
+    "score_index_area"
+  } else {
+    ranking_var <- paste0("mean_",method, "_area")
+  }
+  # admin_level
+  
+  top_areas <- data %>%
+    select(all_of(admin_level),ranking_var) %>% 
+    unique() %>% 
+    arrange(desc(across(contains(ranking_var))))%>%
+    head(10) %>% 
+    mutate(Rank = row_number(), .before = 1) 
+  top_areas <- top_areas %>% 
+    rename_with(~ paste0("value for ",method), .cols = ncol(top_areas)) 
+  
+  cat(paste0("\n**Admin Boundary Level:** ", admin_level, "\n"))
+  
+  kable <- top_areas %>% knitr::kable(format = "html") %>%
+    kableExtra::kable_styling(full_width = FALSE) %>% 
+    kable_styling(full_width = FALSE, bootstrap_options = c("hover"))
+  
+  cat(kable)  # Ensures table is rendered correctly
+  
+  cat("\n\n")  # Add line breaks for clarity
+  
+  
+}
+
+
+```

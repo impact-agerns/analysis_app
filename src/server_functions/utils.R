@@ -122,11 +122,13 @@ plot.select <- function(df=result_long %>% filter(is.na(disag_var_1), is.na(disa
 plot_area_comparison <- function(df){
 p <- ggplot(df, aes(x = reorder(label.choice, total_percentage), y = mean, fill = disag_val_1)) +
   geom_bar(stat = "identity", position = "stack") +
-  scale_fill_manual(values = RColorBrewer::brewer.pal(n = length(unique(data_filtered$disag_val_1)), "Set1")) +
+  scale_fill_scico_d(palette = "batlow")+# Try "batlow", "roma", "vik", "berlin", etc.
+# , n = length(unique(data_filtered$disag_val_1))) + 
+  # scale_fill_manual(values = RColorBrewer::brewer.pal(n = length(unique(data_filtered$disag_val_1)), "Set1")) +
   scale_x_discrete(labels = ~str_wrap(., width = 60)) +
-  scale_y_continuous(labels = scales::percent_format(), limits = c(0, max(data_filtered$total_percentage)+0.02)) +
+  scale_y_continuous(labels = scales::percent_format(), limits = c(0, max(df$total_percentage)+0.02)) +
   labs(x = "", y = "% of respondents", fill = "Area",
-       title = paste0("\n", str_wrap(unique(data_filtered$label), width = 65), "\n\n"),
+       title = paste0("\n", str_wrap(unique(df$label), width = 65), "\n\n"),
        caption = paste0(resp_sum, " respondents answered the question.")) +
   theme_minimal() + coord_flip() +
   theme(plot.subtitle = element_text(size = 9),

@@ -1,11 +1,12 @@
 ---
-title: "Analysis Report"
+title: "Data summary report"
 output:
   html_document:
     toc: false
     toc_float: false
     theme: flatly
 params:
+  selected_disag_var: NULL
   selected_disag_vals: NULL
   selected_questions: NULL
   data_file: NULL
@@ -13,22 +14,13 @@ editor_options:
   chunk_output_type: console
 ---
 
+
 # {.tabset}
 
-
-```{r setup, include=FALSE}
-library(ggplot2)
-library(dplyr)
-library(readxl)
-library(tidyverse)
-source('src/server_functions/functions.R', local=T)
-source('src/server_functions/Mode.R', local=T)
-source('src/server_functions/process_data_for_aggregation.R', local=T)
-source('src/server_functions/aggregate_data.R', local=T)
-source('src/server_functions/functions.R', local=T)
-source('src/server_functions/format.R', local=T)
-source('src/server_functions/utils.R', local=T)
-# Set global chunk options
+```{r setup , include=F}
+# library(tidyverse)
+# library(openxlsx)
+# library(data.table)
 knitr::opts_chunk$set(
   echo = FALSE,      # Hide code in the output
   eval = TRUE,       # Ensure all code is executed
@@ -39,66 +31,140 @@ knitr::opts_chunk$set(
   fig.width = 10,    # Default figure width
   fig.height = 5     # Default figure height
 )
+local <- interactive() || knitr::is_html_output()  # Adjust based on your case
 
 
-local <- F
+is_knitting <- !interactive()
 
 
 if (local==T){
-data <- read_excel(list.files('input', pattern="analysis_data_test", full.names = TRUE)) 
-# data <- readRDS(params$data_file)
+  
+# Print the status
+if (is_knitting) {
+cat("Knitting the R Markdown document.\n")
 
-# params <- NULL
-params$selected_disag_vals <- c("JM01060", "JM02006")
-# params$selected_questions <- "What are the main problems with water in ${info_settlement_final}?"
-# params$selected_questions <- "For the displaced people who have arrived in ${info_settlement_final}, what are the main reasons that they left their homes?"
-params$selected_questions <- "(D4) Which of the following population groups are currently present in the settlement?"
-print(params$selected_disag_vals)
-print(params$selected_questions)
-print(head(data))  # Check if data is being read properly
-
-
-print(unique(data$label))
-print(unique(params$selected_questions))
-
-}else{
-  data <- readRDS(params$data_file)
+library(pacman)
+p_load(shiny, shinydashboard, writexl, dplyr, readxl, openxlsx, janitor, tidyverse, purrr, data.table, markdown,
+       kableExtra, ggridges, corrplot, kableExtra, scico)
+source('server_functions/functions.R', local=T)
+source('server_functions/Mode.R', local=T)
+source('server_functions/process_data_for_aggregation.R', local=T)
+source('server_functions/aggregate_data.R', local=T)
+source('server_functions/format.R', local=T)
+source('server_functions/utils.R', local=T)
+source('server_functions/si_functions.R', local=T)
+  
+} else {
+cat("Running within a Shiny app.\n")
 }
-# Initialize lists to store plots
-plots_disag_val <- list()
-plots_indicator <- list()
+  
+}
+
 ```
 
 
-```{r Area plots, results='asis'}
-# Main tabset for 'By Disag-Val' section
+```{r loading data, include=F}
+# rm(list=ls())
+
+local <- interactive() || knitr::is_html_output()  # Adjust based on your case
+
+if(local){
+
+# cat('Knitting:', local_knit)
+# local shiny
+# if(local_knit==T){
+# data <- readRDS(list.files(pattern="analysis_data.rds", full.names = TRUE))
+# }else{
+# data <- readRDS(list.files('markdown/',pattern="analysis_data.rds", full.names = TRUE))
+# }
+data <- readRDS(list.files(pattern="analysis_data.rds", full.names = TRUE))
+
+rm(params)
+params <- NULL
+params$selected_disag_var <- data %>% select(disag_var_1) %>% unique() %>% pull(disag_var_1)
+params$selected_disag_var <- params$selected_disag_var[1]
+params$selected_disag_vals <- data %>% select(disag_val_1) %>% unique() %>% pull(disag_val_1)
+params$selected_questions <- data %>% select(label) %>% unique() %>% pull(label)
+params$selected_questions <- params$selected_questions[3:5]
+# params$data_file <- list.files('markdown/',pattern="analysis_data.rds", full.names = TRUE)
+}else{
+  data <- readRDS(params$data_file)
+}
+
+params$selected_disag_vals <- data %>% filter(disag_var_1 == params$selected_disag_var) %>% select(disag_val_1) %>% unique() %>% pull(disag_val_1)
+
+data <- data %>% 
+  filter(is.na(choice)==F, is.na(question)==F, is.na(label)==F) %>% 
+  filter(disag_var_1==params$selected_disag_var, 
+         disag_val_1 %in% params$selected_disag_vals, 
+         label %in% params$selected_questions)
+
+
+if ("All" %in% params$selected_disag_vals){
+  params$selected_disag_vals <- data %>% 
+    select(disag_val_1) %>% unique() %>% pull(disag_val_1)
+}
+print(params)
+
+print(head(data))
+# Initialize lists to store plots
+plots_disag_val <- list()
+plots_indicator <- list()
+
+
+```
+
+
+
+```{r faster area plots, results='asis', eval=T, include=T}
+# library(data.table)
+
 cat("\n## By admin area {.tabset}\n")
 
-# Loop through each 'disag_val'
+# Convert data to data.table for faster processing
+data <- as.data.table(data)
+
+# Prepare a list to store the results
+results <- list()
+
+# Function to generate plot data
+generate_plot_data <- function(disag, selected_question) {
+  if (disag == "All") {
+    plot_data <- data[label == selected_question, .(
+      count = sum(count, na.rm = TRUE),
+      resp = sum(resp, na.rm = TRUE),
+      mean = sum(count, na.rm = TRUE) / sum(resp, na.rm = TRUE)
+    ), by = .(disag_var_1, q.type, question, label, choice, label.choice)]
+  } else {
+    plot_data <- data[disag_val_1 == disag & label == selected_question, .(
+      count = sum(count, na.rm = TRUE),
+      resp = sum(resp, na.rm = TRUE),
+      mean = sum(count, na.rm = TRUE) / sum(resp, na.rm = TRUE)
+    ), by = .(disag_var_1, disag_val_1, q.type, question, label, choice, label.choice)]
+  }
+  return(plot_data)
+}
+
+# Generate plot data for all combinations of 'disag' and 'selected_question'
 for (disag in c("All", params$selected_disag_vals)) {
   cat(paste0("\n### ", disag, "{.tabset}\n"))  # Main tab for each 'disag_val'
-  
-  # Create a sub-tabset for questions inside each 'disag_val' tab
-  for (question in params$selected_questions) {
-    selected_question <- question  # Ensure explicit variable assignment
     if (disag == "All"){
-      plot_data <- data %>% filter(label==selected_question) %>% 
-        group_by(disag_var_1,q.type, question, label, choice, label.choice) %>% 
-        summarise(count = sum(count, na.rm=T), resp = sum(resp, na.rm=T), mean = count/resp)
-      cat('All contains information on the entire dataset and reflects the overall situation across all areas assessed.\n\n')
-    }else{
-    plot_data <- data %>% filter(disag_val_1 == disag, label == selected_question) %>% 
-              group_by(disag_var_1,disag_val_1, q.type,question, label, choice, label.choice) %>% 
-        summarise(count = sum(count, na.rm=T), resp = sum(resp, na.rm=T), mean = count/resp)
-    }
+    cat('All contains information on the entire dataset and reflects the overall situation across all areas assessed.\n\n')
+  }
+  plot_data_list <- lapply(params$selected_questions, generate_plot_data, disag = disag)
+  
+  for (i in seq_along(plot_data_list)) {
+    plot_data <- plot_data_list[[i]]
+    selected_question <- params$selected_questions[i]
+    
     if (nrow(plot_data) > 0) {
       cat(paste0("\n#### ", selected_question, "\n"))  # Sub-tab for each question under this 'disag_val'
       
       # Calling the plot functions based on variable type (e.g., categorical or numerical)
       if (unique(plot_data$q.type) %in% c("select_multiple", "select_one")) {
-        p <- plot.select(df = plot_data, var = selected_question, n_min=100)
+        p <- plot.select(df = plot_data, var = selected_question, n_min = 100)
       } else {
-        p <- plot.int(df = data, df_res = plot_data, var = selected_question, )
+        p <- plot.int(df = data, df_res = plot_data, var = selected_question)
       }
       
       print(p)  # Display the plot inside the sub-tab
@@ -112,7 +178,7 @@ for (disag in c("All", params$selected_disag_vals)) {
 
 
 
-```{r generate_indicator_plots old,  results='asis', echo=F, eval=T, message=F}
+```{r generate_indicator_plots old,  results='asis', echo=F, eval=T, message=F, include=T}
 # Generate plots for Section 2: By Indicator
 # cat("\n# By Indicator2 {#indicator}\n")
 cat("\n## By indicator {.tabset}\n")
@@ -156,7 +222,7 @@ for (question in params$selected_questions) {
 ```
 
 
-```{r generate_indicator_plots,  results='asis', echo=F, eval=T, message=F}
+```{r generate_indicator_plots,  results='asis', echo=F, eval=T, message=F, include=T}
 # Generate plots for Section 2: By Indicator
 # cat("\n# By Indicator2 {#indicator}\n")
 cat("\n## By indicator x Area {.tabset}\n")
@@ -189,6 +255,101 @@ for (question in params$selected_questions) {
 }
 
 ```
+
+
+
+<!-- ```{r Area plots old, results='asis', eval=F} -->
+<!-- # Main tabset for 'By Disag-Val' section -->
+<!-- cat("\n## By admin area {.tabset}\n") -->
+
+<!-- # Loop through each 'disag_val' -->
+<!-- for (disag in c("All", params$selected_disag_vals)) { -->
+<!--   cat(paste0("\n### ", disag, "{.tabset}\n")) -->
+<!--   cat("\n\n")  # Add line breaks for clarity -->
+<!--   # Main tab for each 'disag_val' -->
+<!--   if (disag == "All"){ -->
+<!--     cat('All contains information on the entire dataset and reflects the overall situation across all areas assessed.\n\n') -->
+<!--   } -->
+<!--   # Create a sub-tabset for questions inside each 'disag_val' tab -->
+<!--   for (question in params$selected_questions) { -->
+<!--     selected_question <- question  # Ensure explicit variable assignment -->
+<!--     if (disag == "All"){ -->
+<!--       plot_data <- data %>% filter(label==selected_question) %>%  -->
+<!--         group_by(disag_var_1,q.type, question, label, choice, label.choice) %>%  -->
+<!--         summarise(count = sum(count, na.rm=T), resp = sum(resp, na.rm=T), mean = count/resp) -->
+<!--     }else{ -->
+<!--     plot_data <- data %>% filter(disag_val_1 == disag, label == selected_question) %>%  -->
+<!--               group_by(disag_var_1,disag_val_1, q.type,question, label, choice, label.choice) %>%  -->
+<!--         summarise(count = sum(count, na.rm=T), resp = sum(resp, na.rm=T), mean = count/resp) -->
+<!--     } -->
+<!--     if (nrow(plot_data) > 0) { -->
+<!--       cat(paste0("\n#### ", selected_question, "\n"))  # Sub-tab for each question under this 'disag_val' -->
+
+<!--       # Calling the plot functions based on variable type (e.g., categorical or numerical) -->
+<!--       if (unique(plot_data$q.type) %in% c("select_multiple", "select_one")) { -->
+<!--         p <- plot.select(df = plot_data, var = selected_question, n_min=100) -->
+<!--       } else { -->
+<!--         p <- plot.int(df = data, df_res = plot_data, var = selected_question) -->
+<!--       } -->
+
+<!--       print(p)  # Display the plot inside the sub-tab -->
+<!--       cat("\n\n")  # Add line breaks for clarity -->
+<!--     } -->
+<!--   } -->
+<!-- } -->
+
+
+<!-- ``` -->
+
+
+
+
+<!-- ```{r Area plots basic, results='asis', eval=F} -->
+
+<!-- cat("\n## By admin area {.tabset}\n") -->
+
+<!-- # Convert data to data.table for faster processing -->
+<!-- data <- as.data.table(data) -->
+
+<!-- # Loop through each 'disag_val' -->
+<!-- for (disag in c("All", params$selected_disag_vals)) { -->
+<!--   cat(paste0("\n### ", disag, "{.tabset}\n"))  # Main tab for each 'disag_val' -->
+
+<!--   # Create a sub-tabset for questions inside each 'disag_val' tab -->
+<!--   for (question in params$selected_questions) { -->
+<!--     selected_question <- question  # Ensure explicit variable assignment -->
+<!--     if (disag == "All") { -->
+<!--       plot_data <- data[label == selected_question, .( -->
+<!--         count = sum(count, na.rm = TRUE), -->
+<!--         resp = sum(resp, na.rm = TRUE), -->
+<!--         mean = sum(count, na.rm = TRUE) / sum(resp, na.rm = TRUE) -->
+<!--       ), by = .(disag_var_1, q.type, question, label, choice, label.choice)] -->
+<!--       cat('All contains information on the entire dataset and reflects the overall situation across all areas assessed.\n\n') -->
+<!--     } else { -->
+<!--       plot_data <- data[disag_val_1 == disag & label == selected_question, .( -->
+<!--         count = sum(count, na.rm = TRUE), -->
+<!--         resp = sum(resp, na.rm = TRUE), -->
+<!--         mean = sum(count, na.rm = TRUE) / sum(resp, na.rm = TRUE) -->
+<!--       ), by = .(disag_var_1, disag_val_1, q.type, question, label, choice, label.choice)] -->
+<!--     } -->
+<!--     if (nrow(plot_data) > 0) { -->
+<!--       cat(paste0("\n#### ", selected_question, "\n"))  # Sub-tab for each question under this 'disag_val' -->
+
+<!--       # Calling the plot functions based on variable type (e.g., categorical or numerical) -->
+<!--       if (unique(plot_data$q.type) %in% c("select_multiple", "select_one")) { -->
+<!--         p <- plot.select(df = plot_data, var = selected_question, n_min = 100) -->
+<!--       } else { -->
+<!--         p <- plot.int(df = data, df_res = plot_data, var = selected_question) -->
+<!--       } -->
+
+<!--       print(p)# Display the plot inside the sub-tab -->
+
+<!--       cat("\n\n") # Add line breaks for clarity -->
+<!--     } -->
+<!--   } -->
+<!-- } -->
+
+<!-- ``` -->
 
 
 

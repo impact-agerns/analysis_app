@@ -1,8 +1,8 @@
 # Required Libraries
 # gc()
 library(pacman)
-p_load(shiny, shinydashboard, writexl, dplyr, readxl, openxlsx, janitor, tidyverse, purrr, DT, markdown, 
-       kableExtra, shinyWidgets)
+p_load(shiny, shinydashboard, writexl, dplyr, readxl, openxlsx, janitor, tidyverse, purrr, data.table, markdown, 
+       kableExtra, ggridges, corrplot, kableExtra, scico)
 source('src/server_functions/functions.R', local=T)
 source('src/server_functions/Mode.R', local=T)
 source('src/server_functions/process_data_for_aggregation.R', local=T)
@@ -25,8 +25,7 @@ server <- function(input, output, session) {
   
   dis_global <- reactiveVal(NULL)
   analysis_data_out <- reactiveVal(NULL) # analysis data
-  
-  
+
   local_admin_bounds <- reactiveVal(NULL)
   official_admin_boundaries <- reactiveVal(
     c("admin1", "admin2", "admin3", "admin4")
@@ -463,60 +462,106 @@ server <- function(input, output, session) {
     analysis_data_out() %>% filter(disag_var_1 == input$report_disag_var)
   })
   
-  
-  
   observe({
-    updateSelectInput(session, "filter_disag_val_1", choices = unique(filtered_disag_var_1()$disag_val_1))
-    updateSelectInput(session, "selected_question", choices = unique(analysis_data_out()$label), selected = unique(analysis_data_out()$label)[1])
-    updateSelectInput(session, "report_disag_val", choices = unique(rep_filtered_data()$disag_val_1))
+    # Update select inputs based on analysis data
+    updateSelectInput(session, "selected_question", choices = unique(analysis_data_out()$label))
+    updateSelectInput(session, "report_disag_val", choices = c("All", unique(rep_filtered_data()$disag_val_1)))
     updateSelectInput(session, "report_questions", choices = unique(analysis_data_out()$label))
   })
   
   observe({
     req(analysis_data_out())
+    area_values <- unique(filtered_disag_var_1()$disag_val_1)
     
-    area_values <- unique(analysis_data_out()$disag_val_1)  # Get unique values
-    
-    updateSelectizeInput(session, "filter_disag_val_1", 
-                         choices = area_values, 
-                         # selected = area_values,  # Select all initially
-                         server = TRUE
-    )
+    # Clear previous selections when disag_var_1 changes
+    updateSelectizeInput(session, "filter_disag_val_1",
+                         choices = c("All", area_values),
+                         selected = NULL, # Clear previous selections
+                         server = TRUE)
   })
+  
+  observeEvent(input$filter_disag_val_1, {
+    selected <- input$filter_disag_val_1
+    
+    if ("All" %in% selected && length(selected) > 1) {
+      updateSelectizeInput(session, "filter_disag_val_1",
+                           selected = "All")
+    }
+  })
+  
+  
+  
+  
+  
+  
   
   basic_plot_exploration <- reactive({
     req(input$selected_question, input$filter_disag_val_1)
-
-    # Filter data for selected question and selected disag_val_1 values
+    
     data_filtered <- analysis_data_out() %>%
-      filter(label == input$selected_question, disag_val_1 %in% input$filter_disag_val_1) %>%
-      # filter(label ==selected_question, disag_val_1 %in% params$selected_disag_vals) %>%
-      group_by(choice) %>%
-      mutate(total_percentage = sum(mean)) %>% ungroup() %>%
+      filter(
+        label == input$selected_question,
+        (input$filter_disag_val_1 == "All" | disag_val_1 %in% input$filter_disag_val_1)
+      )
+    
+    if ("All" %in% input$filter_disag_val_1) {
+      # Aggregate across all areas
+      data_filtered <- data_filtered %>%
+        group_by(label, choice, label.choice) %>%
+        summarise(count = sum(count, na.rm=T), resp = sum(resp, na.rm=T), mean = count/resp) %>% 
+        mutate(disag_val_1 = "All areas")  # Set a single fill value
+    }
+    
+    data_filtered <- data_filtered %>%
+      group_by(label, choice) %>%
+      mutate(total_percentage = sum(mean), priority = sum(mean)*100*count) %>% 
+      ungroup() %>%
       arrange(desc(total_percentage), desc(mean))
-
-    resp_sum <- data_filtered %>% select(disag_val_1, resp) %>% unique() %>% pull(resp) %>% sum()
-
+    
+    # print("data_filtered")
+    # print(data_filtered)
+    
+    
+    resp_sum <- data_filtered %>%
+      select(disag_val_1, resp) %>%
+      unique() %>%
+      pull(resp) %>%
+      sum()
+    
     # Create stacked bar plot
     p <- ggplot(data_filtered, aes(x = reorder(label.choice, total_percentage), y = mean, fill = disag_val_1)) +
       geom_bar(stat = "identity", position = "stack") +
-      scale_fill_manual(values = RColorBrewer::brewer.pal(n = length(unique(data_filtered$disag_val_1)), "Set1")) +
+      # scale_fill_manual(
+      #   values = if ("All" %in% input$filter_disag_val_1) {
+      #     c("All areas" = "#fc4503ed")  # A single color
+      #   } else {
+      #     RColorBrewer::brewer.pal(n = length(unique(data_filtered$disag_val_1)), "Set2")
+      #   }
+      # ) +
+      scale_fill_scico_d(palette = "roma")+# Try "batlow", "roma", "vik", "berlin", etc.
       scale_x_discrete(labels = ~str_wrap(., width = 60)) +
-      scale_y_continuous(labels = scales::percent_format(), limits = c(0, max(data_filtered$total_percentage)+0.02)) +
-      labs(x = "", y = "% of respondents", fill = "Area",
-           title = paste0("\n", str_wrap(unique(data_filtered$label), width = 65), "\n\n"),
-           caption = paste0(resp_sum, " respondents answered the question.")) +
+      scale_y_continuous(labels = scales::percent_format(), limits = c(0, max(data_filtered$total_percentage) + 0.02)) +
+      labs(
+        x = "", y = "% of respondents", fill = "Area",
+        title = paste0("\n", str_wrap(unique(data_filtered$label), width = 65), "\n\n"),
+        caption = paste0(resp_sum, " respondents answered the question.")
+      ) +
       theme_minimal() + coord_flip() +
-      theme(plot.subtitle = element_text(size = 9),
-            panel.grid = element_blank(),
-            axis.text.x = element_blank())+
+      theme(
+        plot.subtitle = element_text(size = 9),
+        panel.grid = element_blank(),
+        axis.text.x = element_blank()
+      ) +
       geom_text(aes(label = ifelse(count > 0,
                                    ifelse(mean > 0.09,
                                           paste0(round(mean * 100, 0), "% (", count, ")"),
                                           paste0(round(mean * 100, 0), "%")),
-                                   "")),             position = position_stack(vjust = 0.5), size = 3, color = "white")
+                                   "")),
+                position = position_stack(vjust = 0.5), size = 3, color = "white")
+    
     p
   })
+  
   
   output$download_plot <- downloadHandler(
     filename = function() { paste("plot_", Sys.Date(), ".png", sep = "") },
@@ -539,35 +584,71 @@ server <- function(input, output, session) {
     
     # Define the file path
     if (Sys.getenv("SHINY_PORT") != "") {
-      # Running on shinyapps.io b Use temp directory
+      # Running on shinyapps.io b Use temp directory
       temp_file <- file.path(tempdir(), "analysis_data.rds")
       cat(temp_file, "\n")
       
     } else {
-      # Running locally b Use a local folder
-      temp_file <- "analysis_data.rds"
+      # Running locally b Use a local folder
+      temp_file <- "markdown/analysis_data.rds"
+      # temp_file <- "analysis_data.rds"
+      
       cat(temp_file, "\n")
+      cat('wd: ',getwd(), '\n')
     }
     
     saveRDS(analysis_data_out(), file = temp_file)
     cat("Data saved to temp file: ", temp_file, "\n")
     
-    rmarkdown::render("generate_report.Rmd", output_file = "analysis_output.html", 
-                      params = list(
-      selected_disag_vals = input$report_disag_val,
-      selected_questions = input$report_questions,
-      data_file = temp_file
-    ))
-    output$msg_data_report_generated <- renderText("Report generated successfully!")
+    output_file <- file.path(tempdir(), "analysis_output.html")
+    # output_file <- file.path("analysis_output.html")
+    
+    
+    tryCatch({
+      rmarkdown::render("markdown/generate_report.Rmd", output_file = output_file, 
+                        params = list(
+                          selected_disag_var = input$report_disag_var,
+                          selected_disag_vals = input$report_disag_val,
+                          selected_questions = input$report_questions,
+                          data_file = temp_file
+                        ))
+      output$msg_data_report_generated <- renderText("Report generated successfully!")
+    }, error = function(e) {
+      cat("Error during rendering: ", e$message, "\n")
+      output$msg_data_report_generated <- renderText("Error generating report.")
+      
+    })
+    
+    # rmarkdown::render("markdown/generate_report.Rmd", output_file = "analysis_output.html", 
+    #                   params = list(
+    #   selected_disag_var = input$report_disag_var,
+    #   selected_disag_vals = input$report_disag_val,
+    #   selected_questions = input$report_questions,
+    #   data_file = temp_file
+    # ))
+    # output$msg_data_report_generated <- renderText("Report generated successfully!")
     
   })
+  
+  # output$download_report_html <- downloadHandler(
+  #   filename = "analysis_output.html",
+  #   content = function(file) {
+  #     file.copy("analysis_output.html", file, overwrite = TRUE)
+  #   }
+  # )
   
   output$download_report_html <- downloadHandler(
     filename = "analysis_output.html",
     content = function(file) {
-      file.copy("analysis_output.html", file, overwrite = TRUE)
+      temp_output_file <- file.path(tempdir(), "analysis_output.html")
+      if (file.exists(temp_output_file)) {
+        file.copy(temp_output_file, file, overwrite = TRUE)
+      } else {
+        cat("File does not exist: ", temp_output_file, "\n")
+      }
     }
   )
+  
   
   # observeEvent(input$label_selector,input$kobo_file,{
   #   dap_template <- combine_tool_global_label(survey = survey_data(), 
@@ -803,7 +884,7 @@ server <- function(input, output, session) {
     saveRDS(data_index_out(), file = temp_file)
     
     
-    rmarkdown::render("severity_html.Rmd", output_file = "severity_index.html", 
+    rmarkdown::render("markdown/severity_index.Rmd", output_file = "severity_index.html", 
                       params = list(
                         admin_level_index = input$admin_level_index,
                         selected_index_method = input$selected_index_method,
@@ -838,9 +919,11 @@ server <- function(input, output, session) {
     }
     
     saveRDS(data_index_out(), file = temp_file)
-    cat("Data saved to temp file: ", temp_file, "\n")
+    output_file <- file.path(tempdir(), "flag_index_sensitvity_analysis.html")
     
-    rmarkdown::render("flag_index_sensitivity_analysis.Rmd", output_file = "flag_index_sensitvity_analysis.html", 
+    cat("Data saved to temp file: ", output_file, "\n")
+    
+    rmarkdown::render("markdown/flag_index_sensitivity_analysis.Rmd", output_file = output_file, 
                       params = list(
                         admin_level_index = input$admin_level_index,
                         selected_index_method = input$selected_index_method,
@@ -851,11 +934,15 @@ server <- function(input, output, session) {
     output$download_sensitvity_analysis <- downloadHandler(
       filename = "flag_index_sensitvity_analysis.html",
       content = function(file) {
-        req(input$generate_index_html)
-        file.copy("flag_index_sensitvity_analysis.html", file, overwrite = TRUE)
+        temp_output_file <- file.path(tempdir(), "flag_index_sensitvity_analysis.html")
+        if (file.exists(temp_output_file)) {
+          file.copy(temp_output_file, file, overwrite = TRUE)
+        } else {
+          cat("File does not exist: ", temp_output_file, "\n")
+        }
       }
     )
-    
+
   })
 
   

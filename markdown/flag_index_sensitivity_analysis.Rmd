@@ -31,14 +31,13 @@ knitr::opts_chunk$set(echo = F, eval=T, include=F, warning=F, message=F, cache.l
 ```{r Packages}
 gc()
 getwd()
-library(pacman)
-p_load(tidyverse, openxlsx, readxl, ggridges, corrplot, kableExtra)
+
 ```
 
 
 ```{r Parameters to modify}
 input_path <- "input/"
-output_path <- "output/"
+# output_path <- "output/"
 # output_path <- "src"
 # list.files(output_path)
 
@@ -58,12 +57,12 @@ admin_boundaries <- c("admin1", "admin2","admin3", "admin4")
 
 ## To run this script one can use the data that resulted from the previous script ( Script 1 )
 # data_index <- read.xlsx("Outputs/SSI_Clean_Sahel.xlsx")
-
 local <- interactive() || knitr::is_html_output()  # Adjust based on your case
 
 if (local){
 
-  data_index <- read_excel(list.files(pattern="severity_index_data_ssdr3", full.names = T), sheet="Raw data") %>% 
+    # data_index <- read_excel(list.files('markdown/',pattern="severity_index_data_ssdr3", full.names = T), sheet="Raw data") %>%
+  data_index <- read_excel(list.files(pattern="severity_index_data_ssdr3", full.names = T), sheet="Raw data") %>%
     mutate(severity_value = as.numeric(severity_value))
   
 } else {
@@ -351,7 +350,6 @@ sector_corr <- cor(data_sector_wide, use = "complete.obs")
 
 
 ## I plot the correlation matrix
-library(corrplot)
 corrplot(sector_corr, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
 ```
 
@@ -384,7 +382,6 @@ sector_corr <- cor(data_sector_wide, use = "complete.obs")
 
 
 ## I plot the correlation matrix
-library(corrplot)
 corrplot(sector_corr, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
 ```
 
@@ -417,7 +414,6 @@ sector_corr <- cor(data_sector_wide, use = "complete.obs")
 
 
 ## I plot the correlation matrix
-library(corrplot)
 corrplot(sector_corr, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
 ```
 
@@ -450,7 +446,6 @@ sector_corr <- cor(data_sector_wide, use = "complete.obs")
 
 
 ## I plot the correlation matrix
-library(corrplot)
 corrplot(sector_corr, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
 ```
 
@@ -483,7 +478,6 @@ sector_corr <- cor(data_sector_wide, use = "complete.obs")
 
 
 ## I plot the correlation matrix
-library(corrplot)
 corrplot(sector_corr, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
 ```
 
@@ -513,7 +507,6 @@ data_sector_wide <- data_sector %>%
 sector_corr <- cor(data_sector_wide, use = "complete.obs")
 
 ## I plot the correlation matrix
-library(corrplot)
 corrplot(sector_corr, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
 ```
 
@@ -546,7 +539,6 @@ sector_corr <- cor(data_sector_wide, use = "complete.obs")
 
 
 ## I plot the correlation matrix
-library(corrplot)
 corrplot(sector_corr, method = "color", type = "upper", tl.col = "black", tl.srt = 45)
 ```
 
