@@ -78,6 +78,21 @@ The results below show the top 10 values in terms of severity at indicator, sect
 
 ### Indicator {.tabset}
 ```{r, result="asis"}
+custom_colors <- c(
+  "fsl" = "#F08080",        # Light Coral (softer red)
+  "shl" = "#D2B48C",        # Tan (softer brown)
+  "shelter" = "#D2B48C",
+  "wsh" = "#ADD8E6",        # Light Blue (soft water-related color)
+  "wash" = "#ADD8E6",
+  "hea" = "#DDA0DD",        # Plum (soft purple)
+  "pop" = "#FFD700",        # Light Gold (softer yellow)
+  "pro" = "#A9A9A9",        # Dark Gray (soft neutral tone)
+  "cm" = "#F4A460",         # Sandy Brown (softer tan)
+  "edu" = "#90EE90",         # Light Green (soft green)
+  "aap" = "#FFB6C1"        # Light Pink (softer pink)
+)
+
+
 for (method in selected_methods) {
   # method <- "flag3"
   cat(paste0("\n#### ", method, " {.tabset}\n"))
@@ -91,9 +106,9 @@ for (method in selected_methods) {
   
   if (str_detect(method, "flag")) {
     top_indicators <- data %>%
-      select(question, contains(ranking_var)) %>% 
+      select(question, cluster = sector, contains(ranking_var)) %>% 
       select(-contains("sector"), -contains("settlement"), -contains("area")) %>%
-      group_by(question) %>% 
+      group_by(question, cluster) %>% 
       summarise(across(contains(ranking_var), sum, na.rm = TRUE)) %>% 
       arrange(desc(across(contains(ranking_var)))) %>%
       head(10) 
@@ -105,18 +120,19 @@ for (method in selected_methods) {
       kableExtra::kable_styling(full_width = FALSE) %>% 
       kable_styling(full_width = FALSE, bootstrap_options = c("hover"))
     
-    p <-   ggplot(top_indicators, aes(x = reorder(question, !!sym(ranking_var)), y = !!sym(ranking_var))) +
-      geom_bar(stat = "identity", fill = "#EE5859") +
+    p <-   ggplot(top_indicators, aes(x = reorder(question, !!sym(ranking_var)),fill=cluster, y = !!sym(ranking_var))) +
+      geom_bar(stat = "identity") +
       coord_flip() +
+        scale_fill_manual(values = custom_colors) +  # Apply custom colors
       theme_minimal() +
       labs(x = "", y = "Number of Flags", title = paste("Top Indicators -", method))
     
     
   } else {
     top_indicators <- data %>%
-      select(question, contains(ranking_var)) %>% 
+      select(question, cluster = sector, contains(ranking_var)) %>% 
       select(-contains("sector"), -contains("settlement"), -contains("area")) %>%
-      group_by(question) %>% 
+      group_by(question, cluster) %>% 
       summarise(across(contains(ranking_var), mean, na.rm = TRUE)) %>% 
       arrange(desc(across(contains(ranking_var)))) %>%
       head(10) 
@@ -130,9 +146,10 @@ for (method in selected_methods) {
       
     
     
-    p <-   ggplot(top_indicators, aes(x = reorder(question, !!sym(ranking_var)), y = !!sym(ranking_var))) +
-      geom_bar(stat = "identity", fill = "#EE5859") +
+    p <-   ggplot(top_indicators, aes(x = reorder(question, !!sym(ranking_var)),fill=cluster, y = !!sym(ranking_var))) +
+      geom_bar(stat = "identity") +
       coord_flip() +
+      scale_fill_manual(values = custom_colors) +  # Apply custom colors
       theme_minimal() +
       labs(x = "", y = paste0("Mean ", method), title = paste("Top Indicators -", method))
     
@@ -148,13 +165,16 @@ for (method in selected_methods) {
   
   
 }
+
+
 ```
 
 ### Sector {.tabset}
 ```{r, results='asis'}
 for (method in selected_methods) {
   cat(paste0("\n#### ", method, " {.tabset}\n"))
-  # method <- "proportion3"
+  # method <- "score"
+  method <- "proportion4"
   
   if (method == "score") {
     ranking_var <- paste0(method, "_index_sector")
@@ -162,13 +182,15 @@ for (method in selected_methods) {
     ranking_var <- paste0(method, "_sector")
   }
   # ranking_var <- names(data %>% select(contains(method)))
-  
+library(data.table)
+library(magrittr)
   if (str_detect(method, "flag")) {
     top_sector <- data %>% 
-      select(all_of(admin_boundaries), sector,ranking_var) %>% unique() %>% 
+      select(all_of(admin_boundaries), sector,ranking_var) %>% unique()%>% 
       group_by(sector) %>% 
-      summarise(across(contains(ranking_var), sum, na.rm = TRUE)) %>%
-      arrange(desc(across(contains(ranking_var)))) %>%
+      summarise(
+        across(all_of(ranking_var), sum, na.rm = TRUE)
+      ) %>%      arrange(desc(across(contains(ranking_var)))) %>%
       head(10)
     
     kable <- top_sector %>% 
@@ -179,31 +201,43 @@ for (method in selected_methods) {
       kable_styling(full_width = FALSE, bootstrap_options = c("hover"))
     
     
-    p <-   ggplot(top_sector, aes(x = reorder(sector, !!sym(ranking_var)), y = !!sym(ranking_var))) +
-      geom_bar(stat = "identity", fill = "#EE5859") +
+    p <-   ggplot(top_sector, aes(x = reorder(sector, !!sym(ranking_var)), fill=sector, y = !!sym(ranking_var))) +
+      geom_bar(stat = "identity") +
       coord_flip() +
+      scale_fill_manual(values = custom_colors) +  # Apply custom colors
       theme_minimal() +
       labs(x = "", y = "Number of Flags", title = paste("Top Sectors -", method))
     
   } else {
-    top_sector <- data %>% 
-      select(all_of(admin_boundaries), sector,ranking_var) %>% unique() %>% 
-      group_by(sector) %>% 
-      summarise(across(contains(ranking_var), mean, na.rm = TRUE)) %>%
-      arrange(desc(across(contains(ranking_var)))) %>%
-      head(10)
-    
+    top_sector <- data %>%
+      select(all_of(admin_boundaries), sector, all_of(ranking_var), error_message_sector) %>%
+      distinct() %>%
+      group_by(sector) %>%
+      summarise(
+        across(all_of(ranking_var), mean, na.rm = TRUE),
+        error_message = max(error_message_sector, na.rm = TRUE),
+        .groups = "drop"
+      ) 
+
     kable <- top_sector %>% 
-      rename_with(~ paste0("Mean ",method), .cols = ncol(top_sector)) %>%
+      mutate(
+        !!sym(ranking_var) := round(!!sym(ranking_var), 2),
+        !!sym(ranking_var) := ifelse(is.na(!!sym(ranking_var)), error_message, paste0(!!sym(ranking_var)," %"))
+      ) %>%
+      select(-error_message) %>% 
+      arrange(desc(!!sym(ranking_var))) %>%
+      slice_head(n = 10) %>% 
+      rename_with(~ paste0("Mean ",method), .cols = ncol(top_sector)-1) %>%
       mutate(Rank = row_number(), .before = 1) %>% 
       knitr::kable(format = "html") %>%
       kableExtra::kable_styling(full_width = FALSE) %>% 
       kable_styling(full_width = FALSE, bootstrap_options = c("hover"))
     
     
-    p <-   ggplot(top_sector, aes(x = reorder(sector, !!sym(ranking_var)), y = !!sym(ranking_var))) +
-      geom_bar(stat = "identity", fill = "#EE5859") +
+    p <-   ggplot(top_sector %>% filter(), aes(x = reorder(sector, !!sym(ranking_var)), fill=sector, y = !!sym(ranking_var))) +
+      geom_bar(stat = "identity") +
       coord_flip() +
+      scale_fill_manual(values = custom_colors) +  # Apply custom colors
       theme_minimal() +
       labs(x = "", paste0("Mean ", method), title = paste("Top Sectors -", method))
     

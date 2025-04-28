@@ -1,3 +1,7 @@
+---
+---
+---
+
 ### Structured community KI (AoK) data analysis tool
 
 Created by: Global Emergencies Unit (Alvaro Gerns), Impact Initiatives, 2025.

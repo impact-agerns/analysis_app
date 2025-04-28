@@ -115,7 +115,6 @@ plots_indicator <- list()
 ```
 
 
-
 ```{r faster area plots, results='asis', eval=T, include=T}
 # library(data.table)
 
