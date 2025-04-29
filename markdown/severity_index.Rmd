@@ -174,7 +174,7 @@ for (method in selected_methods) {
 for (method in selected_methods) {
   cat(paste0("\n#### ", method, " {.tabset}\n"))
   # method <- "score"
-  method <- "proportion4"
+  # method <- "proportion4"
   
   if (method == "score") {
     ranking_var <- paste0(method, "_index_sector")
