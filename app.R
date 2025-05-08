@@ -680,7 +680,8 @@ server <- function(input, output, session) {
         group_by(question) %>% 
         mutate(exists = sum(severity_value, na.rm=T)) %>% 
         filter(exists >= 0) %>% select(-exists) %>% ungroup()
-
+      readmedap <- read_excel(list.files('input/data/', pattern="readme", full.names = T), sheet="readme") 
+        
       
       dap_template <- combine_tool_global_label(survey = survey_data(), 
                                                 responses = choices_data(), 
@@ -691,6 +692,7 @@ server <- function(input, output, session) {
       
       
       list_dap <- list("updated_template" = dap_template, 
+                       "Read me" = readmedap,
                        "AoK_si_standard_dap" = aok_si_dap,
                        "UNDAC_si_standard_dap" = undac_si_dap)
       
