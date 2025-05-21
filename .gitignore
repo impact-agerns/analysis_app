@@ -64,3 +64,4 @@ output/severity_index_data_ssdr3.xlsx
 app_test_filter_index.R
 html_severity.html
 html_severity.Rmd
+*.xlsx

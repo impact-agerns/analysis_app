@@ -1,7 +1,7 @@
 # Required Libraries
 # gc()
 library(pacman)
-p_load(shiny, shinydashboard, writexl, dplyr, readxl, openxlsx, janitor, tidyverse, purrr, data.table, markdown, 
+p_load(shiny, shinydashboard, writexl, dplyr, readxl, openxlsx, janitor, tidyverse, purrr, data.table, markdown,
        kableExtra, ggridges, corrplot, kableExtra, scico)
 source('src/server_functions/functions.R', local=T)
 source('src/server_functions/Mode.R', local=T)
@@ -16,13 +16,13 @@ ui <- source('ui.R', local=T)
 
 
 server <- function(input, output, session) {
-  
+
   data_in <- reactiveVal(NULL) # used for clean and aggregated data
-  
+
   survey_data <- reactiveVal(NULL)
   choices_data <- reactiveVal(NULL)
   label_global <- reactiveVal(NULL)
-  
+
   dis_global <- reactiveVal(NULL)
   analysis_data_out <- reactiveVal(NULL) # analysis data
 
@@ -30,86 +30,86 @@ server <- function(input, output, session) {
   official_admin_boundaries <- reactiveVal(
     c("admin1", "admin2", "admin3", "admin4")
     )
-  
+
   data_index_out <- reactiveVal()
-  
+
   admin_bounds_area_index <- reactive({
     switch(input$admin_level_index,
-           "admin1" = official_admin_boundaries()[1],
+           "admin1" = official_admin_boundaries()[[1]],
            "admin2" = official_admin_boundaries()[1:2],
            "admin3" = official_admin_boundaries()[1:3],
            "admin4" = official_admin_boundaries()[1:4])
   })
-  
-  
+
+
   ##### KOBO ####
-  
+
   observeEvent(input$kobo_file, {
     req(input$kobo_file)
-    
+
     tryCatch({
       # Read both sheets and store them in reactive values (assume survey_data and choices_data are defined)
       survey_data(read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA", "#N/A", "", " ", "N/A"), sheet = 'survey'))
       choices_data(read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA", "#N/A", "", " ", "N/A"), sheet = 'choices'))
-      
+
       print('kobo is read and active')
-      
+
       # Extract label columns (e.g., those that start with "label::")
       label_columns <- names(survey_data())[grepl("^lab", names(survey_data()))]
-      
+
       # Update the label selector input with a default selection (first label)
-      updateSelectInput(session, "label_selector", 
-                        choices = label_columns, 
+      updateSelectInput(session, "label_selector",
+                        choices = label_columns,
                         selected = label_columns[1])
       updateSelectInput(session, "select_admin_bounds", choices = survey_data()$name, selected = NULL)
-      
+
       # updateSelectInput(session, "select_admin_bounds", choices = official_admin_boundaries(), selected = NULL)
-        
-      
-      
+
+
+
     }, error = function(e) {
       print(paste("Error loading kobo:", e$message))
       showNotification(paste("Error loading kobo:", e$message), type = "error")
     })
   })
-  
 
-  
+
+
   # Observe the data file input
   observeEvent(input$data_file, {
     req(input$data_file)
     print("File upload initiated.")
-    
+
     temp_file_path <- tempfile(fileext = ".xlsx")
     file.copy(input$data_file$datapath, temp_file_path, overwrite = TRUE)
     cat(temp_file_path)
     # cat(input$data_file$datapath)
     print("File copied to temp path.")
-    
+
     # # local:
     # data_path <- choose.files(caption ="Please select the data path", multi = F)
-    # data_in <-  openxlsx::read.xlsx(data_path, sheet = 1) 
-    
+    # data_in <-  openxlsx::read.xlsx(data_path, sheet = 1)
+
     # label_name <- 'label::English (en)'
-    
+
     # local run
     # tool_path <- choose.files(caption ="Please select the tool to create the dummy data.", multi = F)
     # choices <- read_excel(tool_path, sheet="choices")
     # survey <- read_excel(tool_path, sheet="survey")
-    
+
     tryCatch({
       data <- openxlsx::read.xlsx(temp_file_path, sheet = 1, na.strings = c("NA", "#N/A", "", " ", "N/A"), )
-      
+
       # data <- readxl::read_excel(temp_file_path, sheet = 1, guess_max = 500, na = c("NA", "#N/A", "", " ", "N/A"))
-      
-      data_in(data) 
-        
+
+      data_in(data)
+
       print("Data successfully read.")
-      
+
       # str(data)
       # updateSelectInput(session, "disaggregate_by_1", choices = names(data), selected = NULL)
       # updateSelectInput(session, "disaggregate_by_2", choices = names(data), selected = NULL)
-      
+
     }, error = function(e) {
       print(paste("Error loading data:", e$message))
       showNotification(paste("Error loading data:", e$message), type = "error")
@@ -120,12 +120,12 @@ server <- function(input, output, session) {
     }, error = function(e) {
       showNotification(paste("Error updating input fields:", e$message), type = "error")
     })
-    
+
   })
   # Ensure data_in is not NULL before attempting to rename columns
   observeEvent(data_in(), {
     req(data_in())  # Only proceed if data_in is not NULL
-    
+
     # Retrieve the data, modify column names, and reset data_in
     data <- data_in()
     names(data) <- str_replace_all(names(data), "/", ".")
@@ -133,43 +133,43 @@ server <- function(input, output, session) {
     # Update the modified data back into data_in
     data_in(data)
     print('data is in reactive data_in')
-    
+
   })
-  
+
   observeEvent(input$select_admin_bounds, {
     req(input$select_admin_bounds)
     local_admin_bounds(input$select_admin_bounds)
-    
-    # data <- data_in() %>% 
+
+    # data <- data_in() %>%
     #   rename_with(.fn = ~official_admin_boundaries(), .cols = all_of(local_admin_bounds()))
-    # 
-    # data_in(data) 
+    #
+    # data_in(data)
     # print('official admin added to data_in')
-    
+
   })
-  
-  
+
+
   # Separate observer to update label_global when the label selector changes
   observeEvent(input$label_selector, {
     req(input$label_selector)
     label_global(input$label_selector)
-    
+
     if (nchar(label_global()) == 0) {
       print("label_global is empty!")
     } else {
       print(paste("label_global has a value:", label_global()))
     }
 
-    
+
   })
-  
+
   #### Aggregation ####
-  
+
   # UI output for aggregation variables
   output$aggregation_vars_ui <- renderUI({
     req(data_in())
     if (input$aggregation_option == "aggregate") {
-      selectInput("agg_vars", 
+      selectInput("agg_vars",
                   label = tags$span(style = "color: var(--primary-color);",  "Choose variable(s) for aggregation"),
                   choices = names(data_in()), multiple = TRUE)
     }
@@ -178,24 +178,24 @@ server <- function(input, output, session) {
   # Run aggregation button functionality
   observeEvent(input$run_aggregation, {
     req(data_in())
-    
+
     if (input$aggregation_option == "aggregate") {
       agg_vars <- input$agg_vars
-      
+
       if (length(agg_vars) == 0) {
         showNotification("Please select at least one variable for aggregation.", type = "error")
         return()
       }
-      
+
       # survey <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'survey')
       # choices <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'choices')
       # print(head(survey_data()))
-      
+
       print('loaded survey data successfully!')
-      # print('label is:', label_global()) 
+      # print('label is:', label_global())
       # print(label_global())
       # print('did it print?')
-      
+
       if (nchar(label_global()) == 0) {
         print("label_global is empty!")
       } else {
@@ -215,57 +215,57 @@ server <- function(input, output, session) {
       col.so <- tool.combined %>% filter(q.type == "select_one") %>% pull(name) %>% unique()
       col.int <- survey_data() %>% filter(type == "integer") %>% pull(name) %>% unique()
       col.text <- survey_data() %>% filter(type=="text") %>% pull(name) %>% unique
-      
+
       if (length(col.sm)<=1){
         print("Check if label column is specified correctly in combine_tool function")
         stop("No select_multiple questions found in the tool")
       }else(print("Select multiple questions found in the tool"))
-      
+
       if (any(str_detect(names(data_in()), "/"))){
         sm_separator <-  "/"
         if (sm_separator == "/"){
           print("The separator is /")
           names(data_in()) <- str_replace_all(names(data_in()), "/", ".")
-          print("Separator has been replaced to .") 
+          print("Separator has been replaced to .")
         }
-        
+
       } else if (any(str_detect(names(data_in()), "."))){
         print("The separator is . Which is good :D")
       }
-      
-      
-      
+
+
+
       # Example aggregation process (modify as needed)
       vedelete <- c("dk", "DK", "dnk","Not_to_sure", "not_sure",  "Not_sure", "pnta", "prefer_not_to_answer", "Prefer_not_to_answer")
-      
+
       data_cleaned <- process_data_for_aggregation(data_in(), replace_vec_na = vedelete)
       print('processed data for aggregation')
-      
+
       req(data_cleaned, agg_vars)  # Ensure these are available
-      
+
       tryCatch({
-        aok_aggregated <- aggregate_data(data_cleaned, agg_vars, 
-                                         col_so = col.so, col_sm = col.sm, 
+        aok_aggregated <- aggregate_data(data_cleaned, agg_vars,
+                                         col_so = col.so, col_sm = col.sm,
                                          col_int = col.int, col_text = col.text)
-        
+
         data_in(aok_aggregated)
         df_aggregated_react <<- reactive({ aok_aggregated })
-        
+
       }, error = function(e) {
         showNotification(paste("Error aggregating data:", e$message), type = "error")
-      })      
+      })
       print('aggregated data successfully!')
       # Store aggregated data (add any additional processing)
-      
-      
+
+
       output$aggregation_status <- renderText("Aggregation completed successfully!")
     } else {
       output$aggregation_status <- renderText("Data left at KI level. No aggregation performed.")
     }
-    
+
     updateSelectInput(session, "agg_vars", selected = input$agg_vars)
-    
-    
+
+
     output$download_aggregated_data <- downloadHandler(
       filename = function() {
         paste("aggregated_data_", Sys.Date(), ".xlsx", sep = "")
@@ -274,79 +274,79 @@ server <- function(input, output, session) {
         wb <- createWorkbook()
         sheet_name <- "Aggregated Data"
         data_to_write <- df_aggregated_react()  # Reactive expression for aggregated data
-        
+
         # Write data to the worksheet
         addWorksheet(wb, sheet_name)
         writeData(wb, sheet_name, data_to_write)
-        
+
         # Save workbook
         saveWorkbook(wb, file, overwrite = TRUE)
       }
     )
-    
+
   })
-  
+
   # observeEvent(input$reset_aggregation, {
   #   updateSelectInput(session, "aggregation_option", selected = "no_aggregate")
   #   updateSelectInput(session, "agg_vars", selected = NULL)
   #   data_in(NULL)  # Reset data to original
   #   output$aggregation_status <- renderText("")  # Clear status
   # })
-  
+
   #### Analysis ####
   # Analysis button functionality
   # This code snippet integrates progress updates during the processing of data.
   observeEvent(input$run_analysis, {
     req(data_in())  # Ensure data is available
-    
+
     # Use withProgress to show a progress bar
     withProgress(message = "Running analysis...", {
       # Steps for reading survey and choices from Kobo tool
       # survey <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'survey')
       # choices <- read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA","#N/A",""," ","N/A"), sheet = 'choices')
-      
+
       survey <- survey_data()
       choices <- choices_data()
       # Combine the survey and choices
       tool.combined <- combine_tool_global_label(survey = survey_data(), responses = choices_data(), label_col=label_global())
-      
+
       # Process column names for aggregation
       col.sm <- tool.combined %>% filter(q.type == "select_multiple") %>% pull(name) %>% unique()
       col.so <- tool.combined %>% filter(q.type == "select_one") %>% pull(name) %>% unique()
       col.int <- survey_data() %>% filter(type == "integer") %>% pull(name) %>% unique()
-      
+
       # Check if select_one questions are found
       if (length(col.so) <= 1) {
         stop("Check if label column is specified correctly in combine_tool function: No select_one questions found in the tool")
       } else {
         print("Select one questions found in the tool")
       }
-      
+
       # Define disaggregation levels
       # dis <- list("admin2", c("admin2", "admin3"))
       dis1 <- input$disaggregate_by_1  # Analysis 1 selection
       dis2 <- input$disaggregate_by_2  # Analysis 2 selection
-      
+
       # Combine disaggregations into one list for processing
-      dis <- list(dis1, dis2)      
+      dis <- list(dis1, dis2)
       dis <- dis[!sapply(dis, is.null)]
-      
+
       dis_global(dis)
-      
-      
+
+
       if (length(dis) == 0) {
         showNotification("Please select at least one variable for analysis", type = "error")
         return()
       }
-      
+
       # Clean expanded data
       clean_expanded <- data_in() %>%
         expand.select.one.vec(col.so[col.so %in% names(.)])
       print('clean_expanded run!')
-      
+
       # Initialize the results list for aggregation
       res <- list()
-      
+
       # Efficient aggregation
       for (d in dis) {
         d <- d %>% unlist
@@ -354,65 +354,65 @@ server <- function(input, output, session) {
         if (sum(d %in% names(df)) > 0) {
           df <- df %>% group_by(across(any_of(d)))
         }
-        
+
         df <- df %>%
-          mutate(across(matches(paste0("^", c(col.sm, col.so), "\\.")), as.numeric), 
+          mutate(across(matches(paste0("^", c(col.sm, col.so), "\\.")), as.numeric),
                  across(any_of(col.int), as.numeric)) %>%
-          summarise(across(matches(paste0("^", c(col.sm, col.so), "\\.")), 
-                           list(mean = ~mean(., na.rm = TRUE), 
-                                count = ~sum(., na.rm = TRUE), 
-                                resp = ~sum(!is.na(.)), 
-                                n = ~n()), 
+          summarise(across(matches(paste0("^", c(col.sm, col.so), "\\.")),
+                           list(mean = ~mean(., na.rm = TRUE),
+                                count = ~sum(., na.rm = TRUE),
+                                resp = ~sum(!is.na(.)),
+                                n = ~n()),
                            .names = "{.col}--{.fn}"),
-                    across(any_of(col.int), 
-                           list(mean = ~mean(., na.rm = TRUE), 
-                                sum = ~sum(., na.rm = TRUE), 
-                                median = ~median(., na.rm = TRUE), 
-                                resp = ~sum(!is.na(.)), 
-                                n = ~n()), 
+                    across(any_of(col.int),
+                           list(mean = ~mean(., na.rm = TRUE),
+                                sum = ~sum(., na.rm = TRUE),
+                                median = ~median(., na.rm = TRUE),
+                                resp = ~sum(!is.na(.)),
+                                n = ~n()),
                            .names = "{.col}--{.fn}")) %>%
           ungroup() %>%
-          pivot_longer(-any_of(d)) %>% 
-          separate(name, c("col", "function"), "--", remove = FALSE) %>% 
-          separate(col, c("question", "choice"), "\\.", remove = FALSE) %>%  
+          pivot_longer(-any_of(d)) %>%
+          separate(name, c("col", "function"), "--", remove = FALSE) %>%
+          separate(col, c("question", "choice"), "\\.", remove = FALSE) %>%
           select(-name) %>%
           pivot_wider(names_from = "function", values_from = "value")
-        
+
         # Rename and handle disaggregation variables
         if (sum(str_detect(d, "^all$")) == 0) {
           d <- d %>% setNames(paste0("disag_var_", 1:length(d)))
-          df <- df %>% cbind(setNames(as.list(d), names(d))) %>% 
+          df <- df %>% cbind(setNames(as.list(d), names(d))) %>%
             rename_with(~paste0("disag_val_", 1:length(d)), any_of(unname(d)))
-        } 
-        
+        }
+
         res[[paste(d, collapse = "_")]] <- df %>%
           mutate(mean = ifelse(is.nan(mean), NA, mean))
-        
+
         print(paste0("Analysis disaggregated by ", d, " done"))
       }
 
       # Combine results
       df_res <- res %>% bind_rows() %>%
         select(any_of(c("disag_var_1", "disag_val_1", "disag_var_2", "disag_val_2")), everything())
-      
-      df_res_labelled <- df_res %>% 
-        left_join(select(tool.combined, name, label, name.choice, label.choice, q.type), by=c("question"="name", "choice"="name.choice"))%>% 
-        # rename(aggregation_level1 = disag_var_1, aggregation_value1 = disag_val_1, 
-        # 			 aggregation_level2 = disag_var_2, aggregation_value2 = disag_val_2, 
-        # ) %>% 
+
+      df_res_labelled <- df_res %>%
+        left_join(select(tool.combined, name, label, name.choice, label.choice, q.type), by=c("question"="name", "choice"="name.choice"))%>%
+        # rename(aggregation_level1 = disag_var_1, aggregation_value1 = disag_val_1,
+        # 			 aggregation_level2 = disag_var_2, aggregation_value2 = disag_val_2,
+        # ) %>%
         # mutate(aggregation_level1 = ifelse(is.na(aggregation_level1), "all_settlements", aggregation_level1)) %>%
         unique()
-      
+
       # Output the results in the main panel
       df_res_labelled_reactive <<- reactive({ df_res_labelled })
-      
+
       analysis_data_out(df_res_labelled)
-      
+
       # Success message
       output$analysis_status <- renderText("Analysis completed successfully!")
     })
-    
-    
+
+
     # Server-side logic for downloading analysis data
     output$download_analysis_data <- downloadHandler(
       filename = function() {
@@ -422,112 +422,112 @@ server <- function(input, output, session) {
         wb <- createWorkbook()
         sheet_name <- "Analysis Data"
         data_to_write <- df_res_labelled_reactive()  # Reactive expression for analysis data
-        
+
         # Write data to the worksheet
         addWorksheet(wb, sheet_name)
         writeData(wb, sheet_name, data_to_write)
-        
+
         # Save workbook
         saveWorkbook(wb, file, overwrite = TRUE)
       }
     )
-    
-    
-    
+
+
+
   })
-  
+
   #### Data exploration ####
-  
+
   #### RUN Data Exploration
   filtered_disag_var_1 <- reactive({
     req(input$filter_disag_var_1)
     analysis_data_out() %>% filter(disag_var_1 == input$filter_disag_var_1)
   })
-  
+
   observe({
     analysis_data <- analysis_data_out()  # Get the full dataset
     req(analysis_data)  # Ensure data exists
-    
-    updateSelectInput(session, "filter_disag_var_1", 
-                      choices = unique(analysis_data$disag_var_1), 
+
+    updateSelectInput(session, "filter_disag_var_1",
+                      choices = unique(analysis_data$disag_var_1),
                       selected = unique(analysis_data$disag_var_1)[1])
-    
+
     updateSelectInput(session, "report_disag_var",
                       choices = unique(analysis_data$disag_var_1),
                       selected = unique(analysis_data$disag_var_1)[1])
   })
-  
+
   rep_filtered_data <- reactive({
     req(input$report_disag_var)
     analysis_data_out() %>% filter(disag_var_1 == input$report_disag_var)
   })
-  
+
   observe({
     # Update select inputs based on analysis data
     updateSelectInput(session, "selected_question", choices = unique(analysis_data_out()$label))
     updateSelectInput(session, "report_disag_val", choices = c("All", unique(rep_filtered_data()$disag_val_1)))
     updateSelectInput(session, "report_questions", choices = unique(analysis_data_out()$label))
   })
-  
+
   observe({
     req(analysis_data_out())
     area_values <- unique(filtered_disag_var_1()$disag_val_1)
-    
+
     # Clear previous selections when disag_var_1 changes
     updateSelectizeInput(session, "filter_disag_val_1",
                          choices = c("All", area_values),
                          selected = NULL, # Clear previous selections
                          server = TRUE)
   })
-  
+
   observeEvent(input$filter_disag_val_1, {
     selected <- input$filter_disag_val_1
-    
+
     if ("All" %in% selected && length(selected) > 1) {
       updateSelectizeInput(session, "filter_disag_val_1",
                            selected = "All")
     }
   })
-  
-  
-  
-  
-  
-  
-  
+
+
+
+
+
+
+
   basic_plot_exploration <- reactive({
     req(input$selected_question, input$filter_disag_val_1)
-    
+
     data_filtered <- analysis_data_out() %>%
       filter(
         label == input$selected_question,
         (input$filter_disag_val_1 == "All" | disag_val_1 %in% input$filter_disag_val_1)
       )
-    
+
     if ("All" %in% input$filter_disag_val_1) {
       # Aggregate across all areas
       data_filtered <- data_filtered %>%
         group_by(label, choice, label.choice) %>%
-        summarise(count = sum(count, na.rm=T), resp = sum(resp, na.rm=T), mean = count/resp) %>% 
+        summarise(count = sum(count, na.rm=T), resp = sum(resp, na.rm=T), mean = count/resp) %>%
         mutate(disag_val_1 = "All areas")  # Set a single fill value
     }
-    
+
     data_filtered <- data_filtered %>%
       group_by(label, choice) %>%
-      mutate(total_percentage = sum(mean), priority = sum(mean)*100*count) %>% 
+      mutate(total_percentage = sum(mean), priority = sum(mean)*100*count) %>%
       ungroup() %>%
       arrange(desc(total_percentage), desc(mean))
-    
+
     # print("data_filtered")
     # print(data_filtered)
-    
-    
+
+
     resp_sum <- data_filtered %>%
       select(disag_val_1, resp) %>%
       unique() %>%
       pull(resp) %>%
       sum()
-    
+
     # Create stacked bar plot
     p <- ggplot(data_filtered, aes(x = reorder(label.choice, total_percentage), y = mean, fill = disag_val_1)) +
       geom_bar(stat = "identity", position = "stack") +
@@ -558,54 +558,54 @@ server <- function(input, output, session) {
                                           paste0(round(mean * 100, 0), "%")),
                                    "")),
                 position = position_stack(vjust = 0.5), size = 3, color = "white")
-    
+
     p
   })
-  
-  
+
+
   output$download_plot <- downloadHandler(
     filename = function() { paste("plot_", Sys.Date(), ".png", sep = "") },
     content = function(file) {
       ggsave(file, plot = basic_plot_exploration(), device = "png", width = 12, height = 6, units = "in")
     }
   )
-  
+
   output$basic_plot_exploration <- renderPlot({
     basic_plot_exploration()
-    
+
   })
-  
+
 
   #### Report generation ####
-  
+
   observeEvent(input$generate_html, {
     req(input$report_disag_val, input$report_questions)
     req(analysis_data_out())
-    
+
     # Define the file path
     if (Sys.getenv("SHINY_PORT") != "") {
       # Running on shinyapps.io b Use temp directory
       temp_file <- file.path(tempdir(), "analysis_data.rds")
       cat(temp_file, "\n")
-      
+
     } else {
       # Running locally b Use a local folder
       temp_file <- "markdown/analysis_data.rds"
       # temp_file <- "analysis_data.rds"
-      
+
       cat(temp_file, "\n")
       cat('wd: ',getwd(), '\n')
     }
-    
+
     saveRDS(analysis_data_out(), file = temp_file)
     cat("Data saved to temp file: ", temp_file, "\n")
-    
+
     output_file <- file.path(tempdir(), "analysis_output.html")
     # output_file <- file.path("analysis_output.html")
-    
-    
+
+
     tryCatch({
-      rmarkdown::render("markdown/generate_report.Rmd", output_file = output_file, 
+      rmarkdown::render("markdown/generate_report.Rmd", output_file = output_file,
                         params = list(
                           selected_disag_var = input$report_disag_var,
                           selected_disag_vals = input$report_disag_val,
@@ -616,10 +616,10 @@ server <- function(input, output, session) {
     }, error = function(e) {
       cat("Error during rendering: ", e$message, "\n")
       output$msg_data_report_generated <- renderText("Error generating report.")
-      
+
     })
-    
-    # rmarkdown::render("markdown/generate_report.Rmd", output_file = "analysis_output.html", 
+
+    # rmarkdown::render("markdown/generate_report.Rmd", output_file = "analysis_output.html",
     #                   params = list(
     #   selected_disag_var = input$report_disag_var,
     #   selected_disag_vals = input$report_disag_val,
@@ -627,16 +627,16 @@ server <- function(input, output, session) {
     #   data_file = temp_file
     # ))
     # output$msg_data_report_generated <- renderText("Report generated successfully!")
-    
+
   })
-  
+
   # output$download_report_html <- downloadHandler(
   #   filename = "analysis_output.html",
   #   content = function(file) {
   #     file.copy("analysis_output.html", file, overwrite = TRUE)
   #   }
   # )
-  
+
   output$download_report_html <- downloadHandler(
     filename = "analysis_output.html",
     content = function(file) {
@@ -648,55 +648,55 @@ server <- function(input, output, session) {
       }
     }
   )
-  
-  
+
+
   # observeEvent(input$label_selector,input$kobo_file,{
-  #   dap_template <- combine_tool_global_label(survey = survey_data(), 
-  #                                             responses = choices_data(), 
-  #                                             label_col=label_global()) %>% 
-  #     select(question = name, q.type, choice = name.choice) %>% 
+  #   dap_template <- combine_tool_global_label(survey = survey_data(),
+  #                                             responses = choices_data(),
+  #                                             label_col=label_global()) %>%
+  #     select(question = name, q.type, choice = name.choice) %>%
   #     mutate(severity_value = NA_real_, sector = NA_character_)
-  #   
+  #
   # })
-  
-  
-  ##### INDEX #### 
-  
+
+
+  ##### INDEX ####
+
   output$download_dap <- downloadHandler(
     filename = function() { paste("DAP_Template_", Sys.Date(), ".xlsx", sep = "") },
-    
+
     content = function(file) {
       # Ensure dap_template is properly defined inside the function
-      
+
       aok_si_dap <- read_excel(list.files('input/data/', pattern="standard_si_dap", full.names = T), sheet="standard_aok_si_dap")
-      aok_si_dap_clean <- aok_si_dap %>% 
+      aok_si_dap_clean <- aok_si_dap %>%
         select(sector, type, question, question_label, choice,
-              choice_label, severity_value, comment) %>% 
+              choice_label, severity_value, comment) %>%
         mutate(source = "aok_ib_core")
-      undac_si_dap <- read_excel(list.files('input/data/', pattern="standard_si_dap", full.names = T), sheet="standard_undac_si_dap") %>% 
+      undac_si_dap <- read_excel(list.files('input/data/', pattern="standard_si_dap", full.names = T), sheet="standard_undac_si_dap") %>%
         mutate(source = "undac_ib")
-      sources <- bind_rows(aok_si_dap_clean, undac_si_dap) %>% unique() %>% 
-        rename(choice_label_standard = choice_label, question_label_standard = question_label) %>% 
-        group_by(question) %>% 
-        mutate(exists = sum(severity_value, na.rm=T)) %>% 
+      sources <- bind_rows(aok_si_dap_clean, undac_si_dap) %>% unique() %>%
+        rename(choice_label_standard = choice_label, question_label_standard = question_label) %>%
+        group_by(question) %>%
+        mutate(exists = sum(severity_value, na.rm=T)) %>%
         filter(exists >= 0) %>% select(-exists) %>% ungroup()
-      readmedap <- read_excel(list.files('input/data/', pattern="readme", full.names = T), sheet="readme") 
-        
-      
-      dap_template <- combine_tool_global_label(survey = survey_data(), 
-                                                responses = choices_data(), 
-                                                label_col = label_global()) %>% 
-        select(question = name, question_label = label, type = q.type, choice = name.choice, choice_label = label.choice) %>% 
-        inner_join(sources, by=c("question", "choice", "type")) %>% 
+      readmedap <- read_excel(list.files('input/data/', pattern="readme", full.names = T), sheet="readme")
+
+
+      dap_template <- combine_tool_global_label(survey = survey_data(),
+                                                responses = choices_data(),
+                                                label_col = label_global()) %>%
+        select(question = name, question_label = label, type = q.type, choice = name.choice, choice_label = label.choice) %>%
+        inner_join(sources, by=c("question", "choice", "type")) %>%
         filter(!str_detect(question, 'admin|role|consent|age'))
-      
-      
-      list_dap <- list("updated_template" = dap_template, 
+
+
+      list_dap <- list("updated_template" = dap_template,
                        "Read me" = readmedap,
                        "AoK_si_standard_dap" = aok_si_dap,
                        "UNDAC_si_standard_dap" = undac_si_dap)
-      
-      
+
+
       # Save as Excel file
       write_xlsx(list_dap, path = file)
     }
@@ -704,25 +704,25 @@ server <- function(input, output, session) {
   severity_dap <- reactive({
     req(input$dap_file)
     print('loading severity_dap')
-    openxlsx::read.xlsx(input$dap_file$datapath, sheet = 1, 
+    openxlsx::read.xlsx(input$dap_file$datapath, sheet = 1,
                                         na.strings = c("NA", "#N/A", "", " ", "N/A")) %>%
       select(question, type = type, choice, severity_value, sector) %>%
       mutate(severity_value = as.numeric(severity_value))
-    
+
   })
   print('loaded severity dap')
-  
+
   # check_indicators <- reactive({
   #   data_index <- inner_join(data_in(), severity_dap(), by = c("question", "choice"))
   #   num_unique_values <- length(unique(data_index$question))
   #   num_indicators <- severity_dictionary %>% select(question) %>% unique() %>% nrow()
   #   non_matching_values <- anti_join(severity_dictionary, data_index, by = c("question", "choice"))
-  #   
-  #   list(num_unique_values = num_unique_values, 
-  #        num_indicators = num_indicators, 
+  #
+  #   list(num_unique_values = num_unique_values,
+  #        num_indicators = num_indicators,
   #        non_matching_values = non_matching_values)
   # })
-  
+
   # Download report
   # output$download_quality_report <- downloadHandler(
   #   filename = function() { "Indicator_Check_Report.xlsx" },
@@ -731,62 +731,62 @@ server <- function(input, output, session) {
   #     write.xlsx(report_data$non_matching_values, file)
   #   }
   # )
-  
-  # 
+
+  #
   observeEvent(input$run_index, {
     req(data_in(), severity_dap(), local_admin_bounds(), admin_bounds_area_index())
-    
+
     selected_methods <- input$selected_index_method
-    cat('selected method: ', selected_methods)
+    cat('selected method: ', selected_methods, '\n')
     # local_admin_bounds <- c("admin12", "admin22")
     official_admin_boundaries <- c("admin1", "admin2", "admin3", "admin4")
     official_admin_boundaries <- official_admin_boundaries[seq_len(length(local_admin_bounds()))]
-    
+
     # Process data_in() and store in a new reactive expression
     data_index <- reactive({
       data_index <- data_in()
       if (any(str_detect(names(data_index), "/"))) {
         names(data_index) <- str_replace_all(names(data_index), "/", ".")
       }
-      
+
       data_index %>%
-        rename_with(.fn = ~official_admin_boundaries, .cols = all_of(local_admin_bounds())) %>% 
+        rename_with(.fn = ~official_admin_boundaries, .cols = all_of(local_admin_bounds())) %>%
         reshape_long(admin_bounds= official_admin_boundaries)
-      
+
     })
 
     # library(readxl)
     # list.files('input/data', full.names = T)
     # dap <- read_excel(list.files('input/data', full.names = T,pattern="SI_DAP_v2"))
-    # tot_indicators <- dap %>% 
-    
-      
+    # tot_indicators <- dap %>%
+
+
     tot_indicators <- severity_dap() %>%
         mutate(question = str_remove(question, "\\..*")) %>%
         select(question, sector) %>% unique()
-    
+
     num_sec_indicators <- tot_indicators %>% group_by(sector) %>% summarise(total_ind_per_sector = n())
     len_all_indicators <- length(tot_indicators %>% select(question) %>% unique() %>% pull())
-    
+
     data_index_clean <- data_index() %>%
       inner_join(severity_dap(), by = c("question", "choice")) %>%
-      max_aggregate_sm(severity_dictionary = severity_dap(), admin_bounds = official_admin_boundaries) %>% 
-      ungroup() %>% 
+      max_aggregate_sm(severity_dictionary = severity_dap(), admin_bounds = official_admin_boundaries) %>%
+      ungroup() %>%
       mutate(total_number_core_indicators = len_all_indicators)
-    
-    cat('initial data_index_clean created')
-    
-    cat('admin bounds for area index:',admin_bounds_area_index())
-    
-    evaluated_admin_bounds <- admin_bounds_area_index()
-    
-    cat('admin bounds for area index:',evaluated_admin_bounds)
+
+    cat('initial data_index_clean created.\n')
+
+    cat('admin bounds for area index:',admin_bounds_area_index(), '\n')
+
+    evaluated_admin_bounds <- admin_bounds_area_index()[1]
+
+    cat('admin bounds for area index:',evaluated_admin_bounds, '\n')
     print('Evaluated')
-    
+
     if ("flag3" %in% selected_methods) {
       data_index_clean <- data_index_clean %>%
         add_flag3() %>%
-        add_flag3_per_sector(official_admin_boundaries) %>% 
+        add_flag3_per_sector(evaluated_admin_bounds) %>%
         add_flag3_per_settlement(official_admin_boundaries) %>%
         add_mean_flag3_area(admin_bounds = evaluated_admin_bounds)
       print('added flag3 index')
@@ -794,72 +794,75 @@ server <- function(input, output, session) {
     if ("flag4" %in% selected_methods) {
       data_index_clean <- data_index_clean %>%
         add_flag4() %>%
-        add_flag4_per_sector(official_admin_boundaries) %>% 
-        add_flag4_per_settlement(official_admin_boundaries) %>% 
-        add_mean_flag4_area(official_admin_boundaries)
+        add_flag4_per_sector(evaluated_admin_bounds) %>%
+        add_flag4_per_settlement(official_admin_boundaries) %>%
+        add_mean_flag4_area(evaluated_admin_bounds)
       print('added flag4 index')
     }
     if ("flag4+" %in% selected_methods) {
       data_index_clean <- data_index_clean %>%
         add_flag4_plus() %>%
-        add_flag4_plus_per_sector(official_admin_boundaries) %>% 
-        add_flag4_plus_per_settlement(official_admin_boundaries) %>% 
-        add_mean_flag4_plus_area(official_admin_boundaries)
+        add_flag4_plus_per_sector(evaluated_admin_bounds) %>%
+        add_flag4_plus_per_settlement(official_admin_boundaries) %>%
+        add_mean_flag4_plus_area(evaluated_admin_bounds)
       print('added flag4+ index')
     }
     if ("proportion3" %in% selected_methods) {
       data_index_clean <- data_index_clean %>%
-        add_proportion3_per_sector(official_admin_boundaries, num_sec_indicators) %>% 
-        add_proportion3_per_settlement(official_admin_boundaries, len_all_indicators = len_all_indicators) %>% 
-        add_mean_proportion3_area(official_admin_boundaries, len_all_indicators)
+        add_proportion3_per_sector(official_admin_boundaries, evaluated_admin_bounds, num_sec_indicators) %>%
+        add_proportion3_per_settlement(official_admin_boundaries, len_all_indicators = len_all_indicators) %>%
+        add_mean_proportion3_area(evaluated_admin_bounds, len_all_indicators)
       print('added proportion3 index')
     }
     if ("proportion4" %in% selected_methods) {
       data_index_clean <- data_index_clean %>%
-        add_proportion4_per_sector(official_admin_boundaries, num_sec_indicators) %>% 
-        add_proportion4_per_settlement(official_admin_boundaries, len_all_indicators = len_all_indicators) %>% 
-        add_mean_proportion4_area(official_admin_boundaries, len_all_indicators)
+        add_proportion4_per_sector(official_admin_boundaries, evaluated_admin_bounds, num_sec_indicators) %>%
+        add_proportion4_per_settlement(official_admin_boundaries, len_all_indicators = len_all_indicators) %>%
+        add_mean_proportion4_area(evaluated_admin_bounds, len_all_indicators)
       print('added proportion4 index')
     }
     if ("proportion4+" %in% selected_methods) {
       data_index_clean <- data_index_clean %>%
-        add_proportion4_plus_per_sector(official_admin_boundaries, num_sec_indicators) %>% 
-        add_proportion4_plus_per_settlement(official_admin_boundaries, len_all_indicators = len_all_indicators) %>% 
-        add_mean_proportion4_plus_area(official_admin_boundaries,len_all_indicators)
+        add_proportion4_plus_per_sector(official_admin_boundaries, evaluated_admin_bounds, num_sec_indicators) %>%
+        add_proportion4_plus_per_settlement(official_admin_boundaries, len_all_indicators = len_all_indicators) %>%
+        add_mean_proportion4_plus_area(evaluated_admin_bounds,len_all_indicators)
       print('added proportion4+ index')
     }
     if ("score" %in% selected_methods) {
       data_index_clean <- data_index_clean %>%
-        add_sector_proportion_score(official_admin_boundaries) %>% 
-        add_settlement_proportion_score(official_admin_boundaries) %>% 
-        add_area_score_index_proportion_25(official_admin_boundaries)
+        add_sector_proportion_score(evaluated_admin_bounds) %>%
+        add_settlement_proportion_score(official_admin_boundaries) %>%
+        add_area_score_index_proportion_25(evaluated_admin_bounds)
       print('added Score Index')
     }
     # data_index_clean <- reduce(outputs, left_join, by = names(data_index_clean))
 
-    
-    
+
+
     raw <- data_index_clean
     indicator <- data_index_clean %>% select(-contains('area'), -contains('sector'), -contains('settlement'))
-    sector <- data_index_clean %>% select(official_admin_boundaries,contains('sector')) %>% unique()
-    settlement <- data_index_clean %>% select(official_admin_boundaries, 
+    sector <- data_index_clean %>% select(evaluated_admin_bounds,contains('sector')) %>% unique()
+    settlement <- data_index_clean %>% select(official_admin_boundaries,
                                               contains('settlement'), -contains('area'), -contains('sector')) %>% unique()
-    area <- data_index_clean %>% select(official_admin_boundaries[c(-3,-4)], contains('area')) %>% unique()
-    
-    list_out <- list("Indicator level severity" = indicator, 'sector level' = sector, 'settlement level' = settlement, "area level" = area, "Raw data" = raw)
-    
-    
+    area <- data_index_clean %>% select(evaluated_admin_bounds, contains('area')) %>% unique()
+
+    list_out <- list("Indicator level severity" = indicator, 'sector level' = sector,
+                     'settlement level' = settlement,
+                     'area level' = area,
+                     "Raw data" = raw)
+
+
     data_index_out(data_index_clean)
-    
-    
+
+
     output$run_message <- renderText({
       "Index calculation successfully completed!"
     })
-    
-    
+
+
     # Write Excel file with all sheets
     # write_xlsx(list_out, paste0(output_path, country, "/AoK_SI_clean_", country, "_", date_round, ".xlsx"))
-    
+
     # Download handler for Excel
     output$download_index_data <- downloadHandler(
       filename = function() { "severity_index_data.xlsx" },
@@ -873,7 +876,7 @@ server <- function(input, output, session) {
   observeEvent(input$generate_index_html, {
     req(input$admin_level_index, input$selected_index_method)
     req(data_index_out())
-    
+
     # Define the file path
     if (Sys.getenv("SHINY_PORT") != "") {
       # Running on shinyapps.io b Use temp directory
@@ -882,18 +885,18 @@ server <- function(input, output, session) {
       # Running locally b Use a local folder
       temp_file <- "markdown/index_data.rds"
     }
-    
+
     saveRDS(data_index_out(), file = temp_file)
-    
-    
-    rmarkdown::render("markdown/severity_index.Rmd", output_file = "severity_index.html", 
+
+
+    rmarkdown::render("markdown/severity_index.Rmd", output_file = "severity_index.html",
                       params = list(
                         admin_level_index = input$admin_level_index,
                         selected_index_method = input$selected_index_method,
                         data_file = temp_file
                       ))
     output$msg_report_generated <- renderText("Report generated successfully!")
-    
+
     output$download_index_html <- downloadHandler(
       filename = "severity_index.html",
       content = function(file) {
@@ -901,13 +904,13 @@ server <- function(input, output, session) {
         file.copy("severity_index.html", file, overwrite = TRUE)
       }
     )
-    
+
   })
-  
+
   observeEvent(input$generate_sensitivity_analysis, {
     req(input$admin_level_index, input$selected_index_method)
     req(data_index_out())
-    
+
     # Define the file path
     if (Sys.getenv("SHINY_PORT") != "") {
       # Running on shinyapps.io b Use temp directory
@@ -917,22 +920,22 @@ server <- function(input, output, session) {
       # Running locally b Use a local folder
       temp_file <- "index_data.rds"
       cat(temp_file, "\n")
-      
+
     }
-    
+
     saveRDS(data_index_out(), file = temp_file)
     output_file <- file.path(tempdir(), "flag_index_sensitvity_analysis.html")
-    
+
     cat("Data saved to temp file: ", output_file, "\n")
-    
-    rmarkdown::render("markdown/flag_index_sensitivity_analysis.Rmd", output_file = output_file, 
+
+    rmarkdown::render("markdown/flag_index_sensitivity_analysis.Rmd", output_file = output_file,
                       params = list(
                         admin_level_index = input$admin_level_index,
                         selected_index_method = input$selected_index_method,
                         data_file = temp_file
                       ))
     output$msg_sensitivity_analysis_generated <- renderText("Sensitivity Analysis generated successfully!")
-    
+
     output$download_sensitvity_analysis <- downloadHandler(
       filename = "flag_index_sensitvity_analysis.html",
       content = function(file) {
@@ -947,35 +950,35 @@ server <- function(input, output, session) {
 
   })
 
-  
+
   #####
-  
-  
-  
-  
+
+
+
+
   #### PLOTTING
 
-  
-  
+
+
   # Populate column choices for x_axis and y_axis based on uploaded data
   observeEvent(data_in(), {
     choices <- names(data_in())
     updateSelectInput(session, "x_axis", choices = choices)
     updateSelectInput(session, "y_axis", choices = choices)
   })
-  
-  
-  
+
+
+
   # Display raw or processed data in table based on view type
   # output$table_output <- renderDataTable({
   #   req(input$view_type)
-    
+
     # Determine which dataset to display based on view type
     # table_data <- switch(input$view_type,
     #                      "raw" = data_in(),
     #                      "analysis" = df_res_labelled_reactive(),
     #                      "aggregated" = df_aggregated_react())
-    
+
     # Render DataTable with enhanced features
   #   datatable(table_data,
   #             options = list(
@@ -999,31 +1002,31 @@ server <- function(input, output, session) {
   #       backgroundColor = styleEqual("highlight", "yellow")  # Example style
   #     )
   # })
-  
+
   # Display summary statistics for selected variables
   output$stats_output <- renderTable({
     req(df_res_labelled_reactive())
-    data_stats <- df_res_labelled_reactive() %>% 
-      summarise(across(where(is.numeric), list(mean = ~ mean(.x, na.rm = TRUE), 
+    data_stats <- df_res_labelled_reactive() %>%
+      summarise(across(where(is.numeric), list(mean = ~ mean(.x, na.rm = TRUE),
                                                sd = ~ sd(.x, na.rm = TRUE),
                                                min = ~ min(.x, na.rm = TRUE),
                                                max = ~ max(.x, na.rm = TRUE))))
     data_stats
   })
-  
+
   # Plot output based on user choices
   output$plot_output <- renderPlot({
     req(input$x_axis, input$y_axis, input$plot_type)  # Ensure all inputs are selected
-    
+
     # Dynamically select columns from data based on user input
     x_var <- sym(input$x_axis)
     y_var <- sym(input$y_axis)
-    
+
     # Base ggplot object
     p <- ggplot(data = data_in(), aes(x = !!x_var, y = !!y_var))
-    
+
     # Conditional layer based on selected plot type
-    p <- p + 
+    p <- p +
       switch(input$plot_type,
              "bar" = geom_col(),                    # Bar chart
              "scatter" = geom_point(),              # Scatterplot
@@ -1035,14 +1038,14 @@ server <- function(input, output, session) {
         title = paste("Plot of", input$y_axis, "vs", input$x_axis)
       ) +
       theme_minimal()  # Optional: use any theme you prefer
-    
+
     # Render the plot
     p
   })
-  
 
-  
-  
+
+
+
 } # server end
 
 shinyApp(ui, server)
