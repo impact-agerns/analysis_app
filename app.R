@@ -840,10 +840,10 @@ server <- function(input, output, session) {
 
 
     raw <- data_index_clean
-    indicator <- data_index_clean %>% select(-contains('area'), -contains('sector'), -contains('settlement'))
+    indicator <- data_index_clean %>% select(-contains('area'), -contains('_sector'), -contains('settlement'))
     sector <- data_index_clean %>% select(evaluated_admin_bounds,contains('sector')) %>% unique()
     settlement <- data_index_clean %>% select(official_admin_boundaries,
-                                              contains('settlement'), -contains('area'), -contains('sector')) %>% unique()
+                                              contains('settlement'), -contains('area'), -contains('_sector')) %>% unique()
     area <- data_index_clean %>% select(evaluated_admin_bounds, contains('area')) %>% unique()
 
     list_out <- list("Indicator level severity" = indicator, 'sector level' = sector,
