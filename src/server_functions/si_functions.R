@@ -140,9 +140,10 @@ add_proportion4_per_sector <- function(data, official_admin_boundaries, admin_bo
     add_flag4() %>%
     add_flag4_per_sector(official_admin_boundaries) %>%
     group_by(across(official_admin_boundaries), sector) %>%
-    mutate(num_avail_ind_sector = sum(!is.na(severity_value))) %>%
-    group_by(across(admin_bounds), sector) %>%
-    mutate(sum_indicators_admin_sector = sum(num_avail_ind_sector))
+    mutate(num_avail_ind_sector = n_distinct(question[!is.na(severity_value)])) %>%
+    ungroup() %>%
+    group_by(across(all_of(admin_bounds)), sector) %>%
+    mutate(sum_indicators_admin_sector = n())
   # Check if `total_ind_per_sector` already exists in the data
   if (!"total_ind_per_sector" %in% colnames(data)) {
     data <- data %>%
@@ -174,9 +175,10 @@ add_proportion4_plus_per_sector <- function(data, official_admin_boundaries,admi
     add_flag4_plus() %>%
     add_flag4_plus_per_sector(admin_bounds) %>%
     group_by(across(admin_bounds), sector) %>%
-    mutate(num_avail_ind_sector = sum(!is.na(severity_value))) %>%
-    group_by(across(admin_bounds), sector) %>%
-    mutate(sum_indicators_admin_sector = sum(num_avail_ind_sector))
+    mutate(num_avail_ind_sector = n_distinct(question[!is.na(severity_value)])) %>%
+    ungroup() %>%
+    group_by(across(all_of(admin_bounds)), sector) %>%
+    mutate(sum_indicators_admin_sector = n())
 
   # Check if `total_ind_per_sector` already exists in the data
   if (!"total_ind_per_sector" %in% colnames(data)) {
