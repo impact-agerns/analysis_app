@@ -742,6 +742,15 @@ server <- function(input, output, session) {
     official_admin_boundaries <- c("admin1", "admin2", "admin3", "admin4")
     official_admin_boundaries <- official_admin_boundaries[seq_len(length(local_admin_bounds()))]
 
+    tot_indicators <- severity_dap() %>%
+      mutate(question = str_remove(question, "\\..*")) %>%
+      select(question, sector) %>% unique()
+
+    num_sec_indicators <- tot_indicators %>% group_by(sector) %>% summarise(total_ind_per_sector = n())
+    len_all_indicators <- length(tot_indicators %>% select(question) %>% unique() %>% pull())
+
+
+
     # Process data_in() and store in a new reactive expression
     data_index <- reactive({
       data_index <- data_in()
@@ -751,28 +760,74 @@ server <- function(input, output, session) {
 
       data_index %>%
         rename_with(.fn = ~official_admin_boundaries, .cols = all_of(local_admin_bounds())) %>%
-        reshape_long(admin_bounds= official_admin_boundaries)
+        reshape_long(admin_bounds= official_admin_boundaries) %>%
+        filter(
+          (str_detect(question, "\\.") & choice == "1") |
+            !str_detect(question, "\\.")
+        ) %>%
+        mutate(
+          question_full = question,
+          question = if_else(str_detect(question_full, "\\."), str_extract(question_full, "^[^.]+"), question),
+          choice   = if_else(str_detect(question_full, "\\."), str_extract(question_full, "(?<=\\.)[^.]+"), choice)
+        ) %>%
+        select(-question_full) %>%
+        inner_join(severity_dap(), by = c("question", "choice")) %>%
+        max_aggregate_sm(severity_dictionary = severity_dap(), admin_bounds = official_admin_boundaries) %>%
+        ungroup() %>%
+        mutate(total_number_core_indicators = len_all_indicators)
 
     })
+    data_index_clean <- data_index()
+
 
     # library(readxl)
     # list.files('input/data', full.names = T)
-    # dap <- read_excel(list.files('input/data', full.names = T,pattern="SI_DAP_v2"))
+    local=F
+    if (local==T) {
+      fsl_vars <-c("afrontamiento_mdv", "cantidad_personas_alimentos")
+    si_dap <- read_excel(list.files('input/countries/ven/', full.names = T,pattern="DAP"))
+    dat <- read_excel(list.files('input/countries/ven/', full.names = T,pattern="data"))
+    survey <- read_excel(list.files('input/countries/ven/', full.names = T,pattern="kobo"), sheet="survey")
+    choices <- read_excel(list.files('input/countries/ven/', full.names = T,pattern="kobo"), sheet="choices")
+    tool.combined <- combine_tool_global_label(survey = survey, responses = choices, label_col='label::Spanish (es)')
+
+    not_joined <- si_dap %>%
+      anti_join(tool.combined, by = c("question"="name","choice"= "name.choice"))
+
+    if (any(str_detect(names(dat), "/"))) {
+      names(dat) <- str_replace_all(names(dat), "/", ".")
+    }
+
+    official_admin_boundaries <-c("admin1", "admin2", "admin3")
+    local_admin_bounds <- c("admin1_label", "admin2_label", "admin3_label")
+    data_index <- dat %>%
+      rename_with(.fn = ~official_admin_boundaries, .cols = all_of(local_admin_bounds)) %>%
+      reshape_long(admin_bounds= official_admin_boundaries) %>% arrange(admin1) %>%
+      filter(
+        (str_detect(question, "\\.") & choice == "1") |
+          !str_detect(question, "\\.")
+      ) %>%
+      mutate(
+        question_full = question,
+        question = if_else(str_detect(question_full, "\\."), str_extract(question_full, "^[^.]+"), question),
+        choice   = if_else(str_detect(question_full, "\\."), str_extract(question_full, "(?<=\\.)[^.]+"), choice)
+      ) %>%
+      select(-question_full)
+    tot_indicators <- si_dap%>%
+      mutate(question = str_remove(question, "\\..*")) %>%
+      select(question, sector) %>% unique()
+    num_sec_indicators <- tot_indicators %>% group_by(sector) %>% summarise(total_ind_per_sector = n())
+    len_all_indicators <- length(tot_indicators %>% select(question) %>% unique() %>% pull())
+    data_index_clean <- data_index %>%
+      inner_join(si_dap, by = c("question", "choice")) %>%
+      max_aggregate_sm(severity_dictionary = si_dap, admin_bounds = official_admin_boundaries) %>%
+      ungroup() %>%
+      mutate(total_number_core_indicators = len_all_indicators)
+    }
     # tot_indicators <- dap %>%
 
 
-    tot_indicators <- severity_dap() %>%
-        mutate(question = str_remove(question, "\\..*")) %>%
-        select(question, sector) %>% unique()
 
-    num_sec_indicators <- tot_indicators %>% group_by(sector) %>% summarise(total_ind_per_sector = n())
-    len_all_indicators <- length(tot_indicators %>% select(question) %>% unique() %>% pull())
-
-    data_index_clean <- data_index() %>%
-      inner_join(severity_dap(), by = c("question", "choice")) %>%
-      max_aggregate_sm(severity_dictionary = severity_dap(), admin_bounds = official_admin_boundaries) %>%
-      ungroup() %>%
-      mutate(total_number_core_indicators = len_all_indicators)
 
     cat('initial data_index_clean created.\n')
 

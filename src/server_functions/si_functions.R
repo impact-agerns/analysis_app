@@ -108,11 +108,12 @@ add_proportion3_per_sector <- function(data, official_admin_boundaries, admin_bo
 
   data <- data %>%
     add_flag3() %>%
-    add_flag3_per_sector(official_admin_boundaries) %>%
-    group_by(across(official_admin_boundaries), sector) %>%
-    mutate(num_ind_sector = sum(!is.na(severity_value))) %>%
-    group_by(across(admin_bounds), sector) %>%
-    mutate(sum_indicators_admin_sector = sum(!is.na(severity_value)))
+    add_flag3_per_sector(admin_bounds) %>%
+    group_by(across(all_of(admin_bounds)), sector) %>%
+    mutate(num_avail_ind_sector = n_distinct(question[!is.na(severity_value)])) %>%
+    ungroup() %>%
+    group_by(across(all_of(admin_bounds)), sector) %>%
+    mutate(sum_indicators_admin_sector = n())
 
 
   if (!"total_ind_per_sector" %in% colnames(data)) {
@@ -124,10 +125,10 @@ add_proportion3_per_sector <- function(data, official_admin_boundaries, admin_bo
   data %>%
     group_by(across(admin_bounds)) %>%
     mutate(
-      error_message_sector = ifelse(num_ind_sector < (0.5 * total_ind_per_sector),
+      error_message_sector = ifelse(num_avail_ind_sector < (0.5 * total_ind_per_sector),
                                     "Number of available indicators in sector is below 50% of the total number of indicators of this sector in the severity table. No proportion should be calculated; use the absolute flag index instead.",
                                     NA_character_)) %>%
-    mutate(proportion3_sector = case_when(is.na(error_message_sector)==F ~ NA_real_, T ~ round(flag3_sector/ num_ind_sector*100,2))) %>%
+    mutate(proportion3_sector = case_when(is.na(error_message_sector)==F ~ NA_real_, T ~ round(flag3_sector/ sum_indicators_admin_sector*100,2))) %>%
     ungroup()
   # cat('\nadded proportion 3 sector\n')
 
@@ -139,9 +140,9 @@ add_proportion4_per_sector <- function(data, official_admin_boundaries, admin_bo
     add_flag4() %>%
     add_flag4_per_sector(official_admin_boundaries) %>%
     group_by(across(official_admin_boundaries), sector) %>%
-    mutate(num_ind_sector = sum(!is.na(severity_value))) %>%
+    mutate(num_avail_ind_sector = sum(!is.na(severity_value))) %>%
     group_by(across(admin_bounds), sector) %>%
-    mutate(sum_indicators_admin_sector = sum(!is.na(severity_value)))
+    mutate(sum_indicators_admin_sector = sum(num_avail_ind_sector))
   # Check if `total_ind_per_sector` already exists in the data
   if (!"total_ind_per_sector" %in% colnames(data)) {
     data <- data %>%
@@ -152,13 +153,13 @@ add_proportion4_per_sector <- function(data, official_admin_boundaries, admin_bo
     group_by(across(admin_bounds)) %>%
     mutate(
       error_message_sector = ifelse(
-        num_ind_sector < (0.5 * total_ind_per_sector),
+        num_avail_ind_sector < (0.5 * total_ind_per_sector),
         "Number of available indicators in sector is below 50% of the total number of indicators of this sector in the severity table. No proportion should be calculated; use the absolute flag index instead.",
         NA_character_
       ),
       proportion4_sector = case_when(
         is.na(error_message_sector)==F ~ NA_real_,
-        TRUE ~ round(flag4_sector / num_ind_sector * 100, 2)
+        TRUE ~ round(flag4_sector / sum_indicators_admin_sector * 100, 2)
       )
     ) %>%
     ungroup()
@@ -173,9 +174,9 @@ add_proportion4_plus_per_sector <- function(data, official_admin_boundaries,admi
     add_flag4_plus() %>%
     add_flag4_plus_per_sector(admin_bounds) %>%
     group_by(across(admin_bounds), sector) %>%
-    mutate(num_ind_sector = sum(!is.na(severity_value))) %>%
+    mutate(num_avail_ind_sector = sum(!is.na(severity_value))) %>%
     group_by(across(admin_bounds), sector) %>%
-    mutate(sum_indicators_admin_sector = sum(!is.na(severity_value)))
+    mutate(sum_indicators_admin_sector = sum(num_avail_ind_sector))
 
   # Check if `total_ind_per_sector` already exists in the data
   if (!"total_ind_per_sector" %in% colnames(data)) {
@@ -185,10 +186,13 @@ add_proportion4_plus_per_sector <- function(data, official_admin_boundaries,admi
   data  %>%
     group_by(across(admin_bounds)) %>%
     mutate(
-      error_message_sector = ifelse(num_ind_sector < (0.5 * total_ind_per_sector),
+      error_message_sector = ifelse(
+        num_avail_ind_sector < (0.5 * total_ind_per_sector),
                                     "Number of available indicators in sector is below 50% of the total number of indicators of this sector in the severity table. No proportion should be calculated; use the absolute flag index instead.",
                                     NA_character_)) %>%
-    mutate(proportion4_plus_sector = case_when(is.na(error_message_sector)==F ~ NA_real_, T ~ round(flag4_plus_sector/ num_ind_sector*100,2))) %>%
+    mutate(proportion4_plus_sector = case_when(
+      is.na(error_message_sector)==F ~ NA_real_,
+      T ~ round(flag4_plus_sector/ sum_indicators_admin_sector*100,2))) %>%
     ungroup()
 
 }
@@ -204,13 +208,13 @@ add_proportion3_per_settlement <- function(data, admin_bounds, len_all_indicator
 		group_by(across(admin_bounds)) %>%
 		mutate(num_ind = sum(!is.na(severity_value))) %>%
 		mutate(
-			proportion_not_possible = num_ind < (0.5 * len_all_indicators),
-			error_message_settlement= ifelse(proportion_not_possible,
+			proportion_not_recommended = num_ind < (0.5 * len_all_indicators),
+			error_message_settlement= ifelse(proportion_not_recommended,
 														 "Number of indicators is below 50% of the total number of indicators in the severity table. No proportion should be calculated; use the absolute flag index instead.",
 														 NA_character_)
 		) %>%
 		mutate(
-			proportion3_settlement = ifelse(proportion_not_possible, NA, round(flag3_settlement / num_ind * 100, 2))
+			proportion3_settlement = ifelse(proportion_not_recommended, NA, round(flag3_settlement / num_ind * 100, 2))
 		) %>%
 		ungroup()
 
@@ -224,12 +228,12 @@ add_proportion4_per_settlement <- function(data, admin_bounds, len_all_indicator
     group_by(across(admin_bounds)) %>%
     mutate(num_ind = sum(!is.na(severity_value))) %>%
     mutate(
-      proportion_not_possible = num_ind < (0.5 * len_all_indicators),
-      error_message_settlement = ifelse(proportion_not_possible,
+      proportion_not_recommended = num_ind < (0.5 * len_all_indicators),
+      error_message_settlement = ifelse(proportion_not_recommended,
                              "Number of indicators is below 50% of the total number of indicators in the severity table. No proportion should be calculated; use the absolute flag index instead.",
                              NA_character_)
     ) %>%
-    mutate(proportion4_settlement = ifelse(proportion_not_possible, NA, round(flag4_settlement / num_ind * 100, 2))
+    mutate(proportion4_settlement = ifelse(proportion_not_recommended, NA, round(flag4_settlement / num_ind * 100, 2))
     ) %>%
     ungroup()
 }
@@ -241,13 +245,13 @@ add_proportion4_plus_per_settlement <- function(data, admin_bounds, len_all_indi
     group_by(across(admin_bounds)) %>%
     mutate(num_ind = sum(!is.na(severity_value))) %>%
     mutate(
-      proportion_not_possible = num_ind < (0.5 * len_all_indicators),
-      error_message_settlement = ifelse(proportion_not_possible,
+      proportion_not_recommended = num_ind < (0.5 * len_all_indicators),
+      error_message_settlement = ifelse(proportion_not_recommended,
                              "Number of indicators is below 50% of the total number of indicators in the severity table. No proportion should be calculated; use the absolute flag index instead.",
                              NA_character_)
     ) %>%
     mutate(
-      proportion4_plus_settlement = ifelse(proportion_not_possible, NA, round(flag4_plus_settlement / num_ind * 100, 2))
+      proportion4_plus_settlement = ifelse(proportion_not_recommended, NA, round(flag4_plus_settlement / num_ind * 100, 2))
     ) %>%
     ungroup()
 }
