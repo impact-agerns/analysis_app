@@ -246,7 +246,7 @@ for (question in params$selected_questions) {
     
     if (nrow(data_filtered) > 0) {
      
-    resp_sum <- data_filtered %>% select(disag_val_1, resp) %>% unique() %>% pull(resp) %>% sum()
+    # resp_sum <- data_filtered %>% select(disag_val_1, resp) %>% unique() %>% pull(resp) %>% sum()
   
     print(plot_area_comparison(data_filtered))
     cat("\n\n")  # Line breaks for clarity

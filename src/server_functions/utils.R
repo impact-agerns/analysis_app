@@ -20,7 +20,7 @@ cleanheaders<-function(data,slashtodot){
   if(slashtodot){
     names(data)<-gsub("^X_","",names(data))
     names(data)<-gsub("^_","",names(data))
-    names(data)<-gsub("\\/",".",names(data)) 
+    names(data)<-gsub("\\/",".",names(data))
   } else {
     names(data)<-gsub("^X_","",names(data))
     names(data)<-gsub("^_","",names(data))
@@ -33,7 +33,7 @@ ch<-as.character
 chr<-as.character
 
 label_clog<- function(clog,survey,choices,survey_label,choices_label){
-  
+
   # names(choices)<-gsub(":.*","",names(choices))
   # names(survey)<-gsub(":.*","",names(survey))
   choices_label <- choices[[choices_label]]
@@ -42,31 +42,31 @@ label_clog<- function(clog,survey,choices,survey_label,choices_label){
   old.value_label <- match(clog[["old.value"]], choices[["name"]])
   parent.other.question_label <- match(clog[["parent.other.question"]], survey[["name"]])
   parent.other.answer_label<-match(clog[["parent.other.answer"]], choices[["name"]])
-  
+
   old.value_label<-str_split(clog[["old.value"]]," ")
-  old.value_label<-lapply(old.value_label, function(x)match(x, choices[["name"]])) %>% 
+  old.value_label<-lapply(old.value_label, function(x)match(x, choices[["name"]])) %>%
     lapply(.,function(x){ifelse(is.na(x),x,choices_label[x])}) %>% lapply(., function(x)paste(x,collapse = " ")) %>% unlist
-  
+
   parent.other.answer_label<-str_split(clog[["parent.other.answer"]]," ")
-  parent.other.answer_label<-lapply(parent.other.answer_label, function(x)match(x, choices[["name"]])) %>% 
+  parent.other.answer_label<-lapply(parent.other.answer_label, function(x)match(x, choices[["name"]])) %>%
     lapply(.,function(x){ifelse(is.na(x),x,choices_label[x])}) %>% lapply(., function(x)paste(x,collapse = " ")) %>% unlist
-  
+
   labeled_clog <- clog %>%
     mutate(question.name_label = ifelse(is.na(question.name_label),question.name,survey_label[question.name_label]),
            old.value_label =ifelse(is.na(old.value_label)|old.value_label=="NA",old.value,old.value_label),
            parent.other.question_label = ifelse(is.na(parent.other.question_label),parent.other.question,survey_label[parent.other.question_label]),
            parent.other.answer_label =ifelse(is.na(parent.other.answer_label)|parent.other.answer_label=="NA",parent.other.answer,parent.other.answer_label)
     )
-  
+
   # labeled_clog <- clog %>%
   #   mutate(question.name_label = ifelse(is.na(question.name_label),question.name,survey_label[question.name_label]),
   #          old.value_label = ifelse(is.na(old.value_label),old.value,choices_label[old.value_label]),
   #          parent.other.question_label = ifelse(is.na(parent.other.question_label),parent.other.question,survey_label[parent.other.question_label])
   #          )
-  
+
   vars<-c("today","base","enumerator","uuid","question.name","question.name_label","old.value","old.value_label","new.value","parent.other.question","parent.other.question_label","parent.other.answer","parent.other.answer_label")
   labeled_clog<-labeled_clog %>% select(all_of(vars),everything())
-  
+
   return(labeled_clog)
 }
 
@@ -90,40 +90,43 @@ pulluuid<-function(data,logiquetest){data$uuid[which(logiquetest)]}
 # var <- selected_question
 # n_min=3
 plot.select <- function(df=result_long %>% filter(is.na(disag_var_1), is.na(disag_var_2)), var="safety_concern_increase", n_min=threshold){
-  df_filtered <- df %>% filter(label==var, !is.na(label.choice)) 
+  df_filtered <- df %>% filter(label==var, !is.na(label.choice))
   # note <- df_filtered %>% pull(indicator_note) %>% unique %>% na.omit
   if (nrow(df_filtered)>0){
     plot <- df_filtered %>% ggplot(aes(x=reorder(label.choice,mean), y=mean)) +
       geom_bar(position='dodge', stat='identity', fill="#EE5859")+
       scale_x_discrete(labels=~str_wrap(., width = 60))+
       scale_y_continuous(labels = scales::percent_format(), limits = c(0, max(df$mean)+0.1)) +
-      labs(x="", y="% of respondents", 
+      labs(x="", y="% of respondents",
            # title=str_wrap(paste0(unique(df_filtered$label)), width = 65),
            subtitle=paste0("\n", str_wrap(paste0(unique(df_filtered$label) %>% na.omit), width = 65), "\n\n"),
            caption = paste0(unique(df_filtered$resp), " respondents answered the question.")) +
-      theme_minimal() + coord_flip() + theme(plot.title = element_text(), 
+      theme_minimal() + coord_flip() + theme(plot.title = element_text(),
                                              plot.subtitle = element_text(size=9),
                                              panel.grid = element_blank(),  # Remove grid lines
                                              axis.text.x = element_blank()) # Remove x-axis text)+
     if (sum(df_filtered$count, na.rm=T)>=n_min) {
-      plot <- plot + 
+      plot <- plot +
       scale_y_continuous(labels=scales::percent_format(), limits=c(0,1), breaks=NULL) + # if you want to display %
       labs(y="% of respondents") + geom_text(aes(y=mean+0.07, label=paste0(round(100*mean, 0), "%")), size=2.5)
       } else {
-        plot <- plot + 
-          geom_text(aes(y = mean + 0.055, 
-                        label = ifelse(count > 0, paste0(round(mean * 100, 0), "% (", count, ")"), "")), 
-                    size = 2.5)      
+        plot <- plot +
+          geom_text(aes(y = mean + 0.055,
+                        label = ifelse(count > 0, paste0(round(mean * 100, 0), "% (", count, ")"), "")),
+                    size = 2.5)
         }
     return(plot)
   }
 }
 
 plot_area_comparison <- function(df){
+
+  resp_sum <- df %>% select(disag_val_1, resp) %>% unique() %>% pull(resp) %>% sum()
+
 p <- ggplot(df, aes(x = reorder(label.choice, total_percentage), y = mean, fill = disag_val_1)) +
   geom_bar(stat = "identity", position = "stack") +
   scale_fill_scico_d(palette = "batlow")+# Try "batlow", "roma", "vik", "berlin", etc.
-# , n = length(unique(data_filtered$disag_val_1))) + 
+# , n = length(unique(data_filtered$disag_val_1))) +
   # scale_fill_manual(values = RColorBrewer::brewer.pal(n = length(unique(data_filtered$disag_val_1)), "Set1")) +
   scale_x_discrete(labels = ~str_wrap(., width = 60)) +
   scale_y_continuous(labels = scales::percent_format(), limits = c(0, max(df$total_percentage)+0.02)) +
@@ -134,10 +137,10 @@ p <- ggplot(df, aes(x = reorder(label.choice, total_percentage), y = mean, fill 
   theme(plot.subtitle = element_text(size = 9),
         panel.grid = element_blank(),
         axis.text.x = element_blank())+
-  geom_text(aes(label = ifelse(count > 0, 
-                               ifelse(mean > 0.09, 
+  geom_text(aes(label = ifelse(count > 0,
+                               ifelse(mean > 0.09,
                                       paste0(round(mean * 100, 0), "% (", count, ")"),
-                                      paste0(round(mean * 100, 0), "%")), 
+                                      paste0(round(mean * 100, 0), "%")),
                                "")),             position = position_stack(vjust = 0.5), size = 2.5, color = "white")
 p
 
@@ -150,27 +153,27 @@ p
 #   df <- data %>%
 #     filter(label == selected_question) %>%
 #     group_by(choice) %>%
-#     summarise(total_percent = round(sum(count)/sum(resp)*100,1)) %>% 
+#     summarise(total_percent = round(sum(count)/sum(resp)*100,1)) %>%
 #     slice_max(total_percent, n = 3) %>%
-#     inner_join(data, by = c("choice")) %>% 
+#     inner_join(data, by = c("choice")) %>%
 #     group_by(col, label, choice) %>%
-#     arrange(choice, desc(mean), desc(count)) %>% 
+#     arrange(choice, desc(mean), desc(count)) %>%
 #     slice_max(count, n=10)
-#   
+#
 #   plots <- NULL
-#   
+#
 #   for (choosen in unique(df$choice)){
 #     # print(choosen)
 #     # choosen <- "lack_of_water_storage_containers"
-#     df_filtered <- df %>% 
-#       filter(choice==choosen) 
+#     df_filtered <- df %>%
+#       filter(choice==choosen)
 #     # note <- df_filtered %>% pull(indicator_note) %>% unique %>% na.omit
 #     if (nrow(df_filtered)>0){
 #       plots[[choosen]] <- df_filtered %>% ggplot(aes(x=reorder(disag_val_1,mean), y=mean))+
 #         geom_bar(position='dodge', stat='identity', fill="#EE5859")+
 #         scale_x_discrete(labels=~str_wrap(., width = 60)) +
 #         # scale_y_continuous(labels=scales::percent_format(), limits=c(0,1), breaks = NULL)+ # to display count only
-#         labs(x="", y="% of responses", 
+#         labs(x="", y="% of responses",
 #              title=str_wrap(paste0(unique(df_filtered$label)), width = 65),
 #              subtitle=paste0("\nChoice: ", str_wrap(paste0(unique(df_filtered$label.choice) %>% na.omit), width = 65), "\n"),
 #              caption = paste0("A total of ",sum(unique(df_filtered$resp)), " respondents answered the question.")) +
@@ -178,12 +181,12 @@ p
 #                                                panel.grid = element_blank(),  # Remove grid lines
 #                                                axis.text.x = element_blank())+ # Remove x-axis text)+
 #         labs(y="% and number of respondents") +
-#           geom_text(aes(y = mean + 0.04, 
-#                         label = ifelse(count > 0, paste0(round(mean * 100, 0), "% (", count, ")"), "")), 
+#           geom_text(aes(y = mean + 0.04,
+#                         label = ifelse(count > 0, paste0(round(mean * 100, 0), "% (", count, ")"), "")),
 #                     size = 2.5)
-#       
+#
 #     }
-#     
+#
 #   }
 #   invisible(plots)
 # # return(plots)
@@ -198,9 +201,9 @@ plot.ind_comparison <- function(df_filtered, choosen) {
         geom_bar(position='dodge', stat='identity', fill="#EE5859") +
         scale_y_continuous(labels=scales::percent_format(), limits=c(0,1.1))+ # to display count only
         scale_x_discrete(labels = ~str_wrap(., width = 60)) +
-        labs(x = "", y = "% of responses", 
+        labs(x = "", y = "% of responses",
              title = str_wrap(paste0(unique(df_filtered$label)), width = 65),
-             subtitle = paste0("\nChoice: ", 
+             subtitle = paste0("\nChoice: ",
                                str_wrap(paste0(unique(df_filtered$label.choice) %>% na.omit), width = 65), "\n"),
              caption = paste0("A total of ", sum(unique(df_filtered$resp)), " respondents answered the question.")) +
         theme_minimal() +
@@ -209,8 +212,8 @@ plot.ind_comparison <- function(df_filtered, choosen) {
               plot.subtitle = element_text(size=9),
               panel.grid = element_blank(),
               axis.text.x = element_blank()) +
-        geom_text(aes(y = mean + 0.04, 
-                      label = ifelse(count > 0, paste0(round(mean * 100, 0), "% (", count, ")"), "")), 
+        geom_text(aes(y = mean + 0.04,
+                      label = ifelse(count > 0, paste0(round(mean * 100, 0), "% (", count, ")"), "")),
                   size = 2.5)
     )
   } else {
@@ -230,7 +233,7 @@ plot.int <- function(df=clean, df_res=result_long %>% filter(is.na(disag_var_1),
     geom_histogram(aes(y =stat(count/sum(count))), show.legend = FALSE) +
     scale_x_continuous() + scale_y_continuous(labels=scales::percent_format())+
     labs(x="", y="% of KIs",
-         title=paste0(unique(label$label)), 
+         title=paste0(unique(label$label)),
          # subtitle=paste0("\n", str_wrap(paste0(unique(label$label)), width = 80), "\n\n", paste0(note, collapse = "\n")),
          caption = paste0(unique(label$resp), " out of ", unique(label$n), " respondents answered the question.")) +
     theme_minimal() + theme(plot.title = element_text(), plot.subtitle = element_text(size=9))

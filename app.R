@@ -493,8 +493,6 @@ server <- function(input, output, session) {
 
 
 
-
-
   basic_plot_exploration <- reactive({
     req(input$selected_question, input$filter_disag_val_1)
 
@@ -548,7 +546,14 @@ server <- function(input, output, session) {
       ) +
       theme_minimal() + coord_flip() +
       theme(
-        plot.subtitle = element_text(size = 9),
+          plot.title = element_text(size = 16),
+        plot.subtitle = element_text(size = 10),
+          text = element_text(size = 14),          # global default
+          # axis.text.y = element_text(size = 13),   # y-axis labels
+          axis.title.y = element_text(size = 15),
+          legend.text = element_text(size = 12),
+          legend.title = element_text(size = 13),
+          plot.caption = element_text(size = 12),
         panel.grid = element_blank(),
         axis.text.x = element_blank()
       ) +
@@ -557,7 +562,7 @@ server <- function(input, output, session) {
                                           paste0(round(mean * 100, 0), "% (", count, ")"),
                                           paste0(round(mean * 100, 0), "%")),
                                    "")),
-                position = position_stack(vjust = 0.5), size = 3, color = "white")
+                position = position_stack(vjust = 0.5), size = 4, color = "white")
 
     p
   })
@@ -566,7 +571,7 @@ server <- function(input, output, session) {
   output$download_plot <- downloadHandler(
     filename = function() { paste("plot_", Sys.Date(), ".png", sep = "") },
     content = function(file) {
-      ggsave(file, plot = basic_plot_exploration(), device = "png", width = 12, height = 6, units = "in")
+      ggsave(file, plot = basic_plot_exploration(), device = "png", width = 14, height = 7, units = "in")
     }
   )
 

@@ -25,7 +25,7 @@ ui <- shinyUI(
         title = "KI data analysis tool",
         titleWidth = 300,
         tags$li(
-          class = "dropdown", 
+          class = "dropdown",
           tags$img(src = "REACH.png", height = "50px", width = "225px")
         )
       ),
@@ -41,13 +41,13 @@ ui <- shinyUI(
           # menuItem("Data plotting", tabName = "plot", icon = icon("chart-bar"))
         )
       ),
-      
+
       dashboardBody(
         tabItems(
           tabItem(tabName = "analysis",
                   # First Row: Import Files (side by side)
                   # fluidRow(
-                  #   column(width = 4, 
+                  #   column(width = 4,
                   #          box(
                   #            title = NULL,
                   #            status = "primary",
@@ -58,11 +58,11 @@ ui <- shinyUI(
                   #              tags$h4("Import dataset", style = "color: var(--primary-color);"),
                   #              tags$h5(style = "color: gray;", "Clean data should be saved in the first sheet.")
                   #            ),
-                  #            fileInput("data_file", 
+                  #            fileInput("data_file",
                   #                      label = tags$span(style = "color: var(--primary-color);", "Upload Data File (xlsx)"), accept = ".xlsx")
                   #          )
                   #   ),
-                  #   column(width = 4, 
+                  #   column(width = 4,
                   #          box(
                   #            title = NULL,
                   #            status = "primary",
@@ -73,7 +73,7 @@ ui <- shinyUI(
                   #              tags$h4("Import Kobo file", style = "color: var(--primary-color);"),
                   #              tags$h5(style = "color: gray;", "Important: \nKobo tool has to match data.")
                   #            ),
-                  #            fileInput("kobo_file", 
+                  #            fileInput("kobo_file",
                   #                      label = tags$span(style = "color: var(--primary-color);", "Upload Kobo Tool File (xlsx)"), accept = ".xlsx")
                   #          )
                   #   ),
@@ -87,8 +87,8 @@ ui <- shinyUI(
                   #                tags$h4("Choose label column", style = "color: var(--primary-color);"),
                   #                tags$h5(style = "color: gray;", "Choose label variable e.g.`label::English (en)`.")
                   #              ),
-                  #              selectInput("label_selector", 
-                  #                          label = tags$span(style = "color: var(--primary-color);", "Select label variable"), 
+                  #              selectInput("label_selector",
+                  #                          label = tags$span(style = "color: var(--primary-color);", "Select label variable"),
                   #                          choices = NULL  # Choices will be updated dynamically
                   #              )
                   #          )
@@ -96,7 +96,7 @@ ui <- shinyUI(
                   # ), # fluidrow end
                   # Second Row: Data Aggregation (spans the entire row)
                   fluidRow(
-                    column(width = 12, 
+                    column(width = 12,
                            box(
                              title = NULL,
                              status = "primary",
@@ -106,8 +106,8 @@ ui <- shinyUI(
                                tags$h4("Data aggregation", style = "color: var(--primary-color);"),
                                tags$h5(style = "color: gray;", "Select the variable (indicator) to use as the unit of analysis (e.g. “settlement_name”) and all other relevant location indicators linked to that unit of analysis (e.g. “admin1”; “admin2”; “admin3”). The Aggregated Data can be used for any information products displaying community-level results (e.g. mapping of values for individual settlements).")
                              ),
-                             selectInput("aggregation_option", 
-                                         label = tags$span(style = "color: var(--primary-color);", "Do you want to aggregate the data?"), 
+                             selectInput("aggregation_option",
+                                         label = tags$span(style = "color: var(--primary-color);", "Do you want to aggregate the data?"),
                                          choices = c("Aggregate data" = "aggregate", "Leave data at KI level" = "no_aggregate")),
                              uiOutput("aggregation_vars_ui"),
                              actionButton("run_aggregation", "Run Aggregation"),
@@ -117,10 +117,10 @@ ui <- shinyUI(
                            )
                     )
                   ),
-                  
+
                   # Third Row: Data Analysis (spans the entire row)
                   fluidRow(
-                    column(width = 12, 
+                    column(width = 12,
                            box(
                              title = NULL,
                              status = "primary",
@@ -130,11 +130,11 @@ ui <- shinyUI(
                                tags$h4("Data Analysis", style = "color: var(--primary-color);"),
                                tags$h5(style = "color: gray;", "After clicking on Run Aggregation in the previous step, select the (first) variable (indicator) to use as the level of analysis (typically this will be the admin2). Optionally, if further disaggregation is desired, select a second variable to disaggregate by (in most cases, this optional step is not necessary). The Analysis Data can be used for any information products displaying area-level results (e.g. mapping of summarised values at admin 2 level).")
                              ),
-                             selectInput("disaggregate_by_1", 
-                                         label = tags$span(style = "color: var(--primary-color);", "Choose variable(s) for main analysis (required)"),  
+                             selectInput("disaggregate_by_1",
+                                         label = tags$span(style = "color: var(--primary-color);", "Choose variable(s) for main analysis (required)"),
                                          choices = NULL, multiple = TRUE),
-                             selectInput("disaggregate_by_2", 
-                                         label = tags$span(style = "color: var(--primary-color);", "Choose variable(s) for second (optional) analysis"), 
+                             selectInput("disaggregate_by_2",
+                                         label = tags$span(style = "color: var(--primary-color);", "Choose variable(s) for second (optional) analysis"),
                                          choices = NULL, multiple = TRUE),
                              actionButton("run_analysis", "Run Analysis"),
                              # actionButton("reset_analysis", "Reset Analysis"),  # Reset button added
@@ -152,15 +152,15 @@ ui <- shinyUI(
           ),
           tabItem(tabName = "plot",
                   fluidRow(
-                    box(title = "Plot Settings", 
-                        selectInput("plot_type", 
+                    box(title = "Plot Settings",
+                        selectInput("plot_type",
                                     label = tags$span(style = "color: var(--primary-color);",  "Plot Type"),
                                     choices = c("Bar Chart" = "bar", "Scatterplot" = "scatter", "Violin Plot" = "violin")),
-                        selectInput("x_axis", 
+                        selectInput("x_axis",
                                     label = tags$span(style = "color: var(--primary-color);",  "X-Axis"), choices = NULL),
-                        selectInput("y_axis", 
+                        selectInput("y_axis",
                                     label = tags$span(style = "color: var(--primary-color);",  "Y-Axis"), choices = NULL),
-                        selectInput("measure", 
+                        selectInput("measure",
                                     label = tags$span(style = "color: var(--primary-color);",  "Measure"),choices = c("mean", "count", "median"))
                     ),
                     box(title = "Plot Output",
@@ -170,7 +170,7 @@ ui <- shinyUI(
           ),
           tabItem(tabName = "report",
                   fluidRow(
-                    column(width = 12, 
+                    column(width = 12,
                            box(
                              title = NULL,
                              status = "primary",
@@ -180,26 +180,26 @@ ui <- shinyUI(
                                tags$h4("Generate Report", style = "color: var(--primary-color);"),
                                tags$h5(style = "color: gray;", "Select options to generate a customized report.")
                              ),
-                             selectInput("report_disag_var", 
-                                         label = tags$span(style = "color: var(--primary-color);", "Select Disaggregation Level"), 
+                             selectInput("report_disag_var",
+                                         label = tags$span(style = "color: var(--primary-color);", "Select Disaggregation Level"),
                                          choices = NULL),
-                             selectInput("report_disag_val", 
-                                         label = tags$span(style = "color: var(--primary-color);", "Select Area Values"), 
+                             selectInput("report_disag_val",
+                                         label = tags$span(style = "color: var(--primary-color);", "Select Area Values"),
                                          choices = NULL, multiple = TRUE),
-                             selectInput("report_questions", 
-                                         label = tags$span(style = "color: var(--primary-color);", "Select Questions"), 
+                             selectInput("report_questions",
+                                         label = tags$span(style = "color: var(--primary-color);", "Select Questions"),
                                          choices = NULL, multiple = TRUE),
                              actionButton("generate_html", "Generate HTML Report"),
                              downloadButton("download_report_html", "Download HTML Report"),
                              verbatimTextOutput("msg_data_report_generated")
-                             
+
                            )
                     )
                   )
           ),
           tabItem(tabName = "data_exploration",
                   fluidRow(
-                    column(width = 12, 
+                    column(width = 12,
                            box(
                              title = NULL,
                              status = "primary",
@@ -207,11 +207,12 @@ ui <- shinyUI(
                              width = NULL,
                              tags$div(
                                tags$h4("Data Exploration", style = "color: var(--primary-color);"),
-                               tags$h5(style = "color: gray;", "Data is based on analysis run in the previous page. Select a question and filters to explore the data.
-Select a question and filters to explore the data. To see data aggregated for the entire area, generate a report in the next page.")
+                               tags$h5(style = "color: gray;", "Data is based on analysis run in the previous page.
+                               Select a question and filters to explore the data.
+                                       To see data aggregated for the entire area, generate a report in the next page.")
                              ),
-                             selectInput("filter_disag_var_1", 
-                                         label = tags$span(style = "color: var(--primary-color);", "Select Disaggregation Level"), 
+                             selectInput("filter_disag_var_1",
+                                         label = tags$span(style = "color: var(--primary-color);", "Select Disaggregation Level"),
                                          choices = NULL),
                              selectizeInput("filter_disag_val_1",
                                             label = tags$span(style = "color: var(--primary-color);", "Select Area Value"),
@@ -219,11 +220,11 @@ Select a question and filters to explore the data. To see data aggregated for th
                                             multiple = TRUE,
                                             options = list(plugins = "remove_button")),
                              # actionButton("select_all", "Select All", class = "btn-primary"),
-                             # selectInput("filter_disag_val_1", 
-                             #             label = tags$span(style = "color: var(--primary-color);", "Select Area Value"), 
+                             # selectInput("filter_disag_val_1",
+                             #             label = tags$span(style = "color: var(--primary-color);", "Select Area Value"),
                              #             choices = NULL, multiple = TRUE),
-                             selectInput("selected_question", 
-                                         label = tags$span(style = "color: var(--primary-color);", "Select Question"), 
+                             selectInput("selected_question",
+                                         label = tags$span(style = "color: var(--primary-color);", "Select Question"),
                                          choices = NULL),
                              plotOutput("basic_plot_exploration"),
                              downloadButton("download_plot", "Download Plot")
@@ -233,7 +234,7 @@ Select a question and filters to explore the data. To see data aggregated for th
           ),
           tabItem(tabName = "index",
                   # First Row: Import Files (side by side)
-                  fluidRow(column(width = 4, 
+                  fluidRow(column(width = 4,
                                   box(
                                     title = NULL,
                                     status = "info",
@@ -247,7 +248,7 @@ Select a question and filters to explore the data. To see data aggregated for th
                                     downloadButton("download_dap", "Download Template")
                                   )
                   ),
-                    column(width = 4, 
+                    column(width = 4,
                            box(
                              title = NULL,
                              status = "primary",
@@ -258,11 +259,11 @@ Select a question and filters to explore the data. To see data aggregated for th
                                tags$h4("Import Data Analysis plan", style = "color: var(--primary-color);"),
                                tags$h5(style = "color: gray;", "Upload the Index DAP based on the template. Save DAP in the first sheet.")
                              ),
-                             fileInput("dap_file", 
+                             fileInput("dap_file",
                                        label = tags$span(style = "color: var(--primary-color);", "Upload Data DAP (xlsx)"), accept = ".xlsx")
                            )
                     ),
-                    column(width = 4, 
+                    column(width = 4,
                            box(
                              title = NULL,
                              status = "info",
@@ -280,7 +281,7 @@ Select a question and filters to explore the data. To see data aggregated for th
                   ), # fluidrow end
                   # Second Row: Data Aggregation (spans the entire row)
                   fluidRow(
-                    column(width = 12, 
+                    column(width = 12,
                            box(
                              title = NULL,
                              status = "primary",
@@ -290,8 +291,8 @@ Select a question and filters to explore the data. To see data aggregated for th
                                tags$h4("Select Index calculation", style = "color: var(--primary-color);"),
                                tags$h5(style = "color: gray;", "Select the method for calculating the index.")
                              ),
-                             selectInput("selected_index_method", 
-                                         label = tags$span(style = "color: var(--primary-color);", "Select index method."),  
+                             selectInput("selected_index_method",
+                                         label = tags$span(style = "color: var(--primary-color);", "Select index method."),
                                          choices = c(
                                            "Flag Severity 3 (Indicator, Cluster, Settlement, Area)" = "flag3",
                                            "Flag Severity 4 (Indicator, Cluster, Settlement, Area)" = "flag4",
@@ -305,7 +306,7 @@ Select a question and filters to explore the data. To see data aggregated for th
                              actionButton("run_index", "Run Index Calculation"),
                              downloadButton("download_index_data", "Download Index Data"),
                              verbatimTextOutput("run_message"),
-                             br(), 
+                             br(),
                              actionButton("generate_index_html", "Generate HTML Report"),
                              downloadButton("download_index_html", "Download HTML Report"),
                              verbatimTextOutput("msg_report_generated"),
@@ -320,7 +321,7 @@ Select a question and filters to explore the data. To see data aggregated for th
           tabItem(tabName = "import",
                   # First Row: Import Files (side by side)
                   fluidRow(
-                    column(width = 6, 
+                    column(width = 6,
                                   box(
                                     title = NULL,
                                     status = "primary",
@@ -331,11 +332,11 @@ Select a question and filters to explore the data. To see data aggregated for th
                                       tags$h4("Import dataset", style = "color: var(--primary-color);"),
                                       tags$h5(style = "color: gray;", paste0("\nImportant: \nData should be in xml format and cleaned before importing. The clean data should then be saved in the first sheet.\n"))
                                     ),
-                                    fileInput("data_file", 
+                                    fileInput("data_file",
                                               label = tags$span(style = "color: var(--primary-color);", "Upload Data File (xlsx)"), accept = ".xlsx")
                                   )
                   ),
-                  column(width = 6, 
+                  column(width = 6,
                          box(
                            title = NULL,
                            status = "primary",
@@ -346,13 +347,13 @@ Select a question and filters to explore the data. To see data aggregated for th
                              tags$h4("Import Kobo file", style = "color: var(--primary-color);"),
                              tags$h5(style = "color: gray;", "Important: the uploaded Kobo tool must be the exact same tool used to collect the data.")
                            ),
-                           fileInput("kobo_file", 
+                           fileInput("kobo_file",
                                      label = tags$span(style = "color: var(--primary-color);", "Upload Kobo Tool File (xlsx)"), accept = ".xlsx")
                          )
                   )
                   ),
                   fluidRow(
-                    column(width = 6, 
+                    column(width = 6,
                            box(
                              title = NULL,
                              status = "primary",
@@ -363,8 +364,8 @@ Select a question and filters to explore the data. To see data aggregated for th
                                tags$h4("Select administrative boundaries", style = "color: var(--primary-color);"),
                                tags$h5(style = "color: gray;", "Important: \nSelect the admin1, admin2, admin3, admin4 (e.g. settlement/village) boundaries in that order")
                              ),
-                             selectInput("select_admin_bounds", 
-                                         label = tags$span(style = "color: var(--primary-color);", "Select all available admin boundaries"),  
+                             selectInput("select_admin_bounds",
+                                         label = tags$span(style = "color: var(--primary-color);", "Select all available admin boundaries"),
                                          choices = NULL, multiple = TRUE)
                            )
                     ),
@@ -378,8 +379,8 @@ Select a question and filters to explore the data. To see data aggregated for th
                                  tags$h4("Choose label column", style = "color: var(--primary-color);"),
                                  tags$h5(style = "color: gray;", "Important: \nIn both the “survey” and “choice” sheets of the Kobo xlsx, the “label” column header should be written the same way.")
                                ),
-                               selectInput("label_selector", 
-                                           label = tags$span(style = "color: var(--primary-color);", "Select label variable"), 
+                               selectInput("label_selector",
+                                           label = tags$span(style = "color: var(--primary-color);", "Select label variable"),
                                            choices = NULL  # Choices will be updated dynamically
                                )
                            )
@@ -387,7 +388,7 @@ Select a question and filters to explore the data. To see data aggregated for th
                   ), # fluidrow end
                   # Second Row: Data Aggregation (spans the entire row)
                   fluidRow(
-                    
+
                   ) # fluidrow end
           ), # last tabitem
           tabItem(tabName = "documentation",
