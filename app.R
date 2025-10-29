@@ -1,7 +1,7 @@
 # Required Libraries
 # gc()
 library(pacman)
-p_load(shiny, shinydashboard, writexl, dplyr, readxl, openxlsx, janitor, tidyverse, purrr, data.table, markdown,
+p_load(shiny, shinyjs, shinydashboard, writexl, dplyr, readxl, openxlsx, janitor, tidyverse, purrr, data.table, markdown,
        kableExtra, ggridges, corrplot, kableExtra, scico)
 source('src/server_functions/functions.R', local=T)
 source('src/server_functions/Mode.R', local=T)
@@ -48,28 +48,36 @@ server <- function(input, output, session) {
     req(input$kobo_file)
 
     tryCatch({
-      # Read both sheets and store them in reactive values (assume survey_data and choices_data are defined)
-      survey_data(read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA", "#N/A", "", " ", "N/A"), sheet = 'survey'))
-      choices_data(read_xlsx(input$kobo_file$datapath, guess_max = 100, na = c("NA", "#N/A", "", " ", "N/A"), sheet = 'choices'))
+      # Read both sheets and store them in reactive values
+      survey_data(read_xlsx(input$kobo_file$datapath, guess_max = 100,
+                            na = c("NA", "#N/A", "", " ", "N/A"),
+                            sheet = 'survey'))
+      choices_data(read_xlsx(input$kobo_file$datapath, guess_max = 100,
+                             na = c("NA", "#N/A", "", " ", "N/A"),
+                             sheet = 'choices'))
 
       print('kobo is read and active')
 
-      # Extract label columns (e.g., those that start with "label::")
+      # Extract label columns
       label_columns <- names(survey_data())[grepl("^lab", names(survey_data()))]
 
-      # Update the label selector input with a default selection (first label)
+      # Update label selector
       updateSelectInput(session, "label_selector",
                         choices = label_columns,
                         selected = label_columns[1])
-      updateSelectInput(session, "select_admin_bounds", choices = survey_data()$name, selected = NULL)
+      updateSelectInput(session, "select_admin_bounds",
+                        choices = survey_data()$name,
+                        selected = NULL)
 
-      # updateSelectInput(session, "select_admin_bounds", choices = official_admin_boundaries(), selected = NULL)
-
-
+      # 🔹 Enable the download button once Kobo file is valid
+      shinyjs::enable("download_dap")
 
     }, error = function(e) {
       print(paste("Error loading kobo:", e$message))
       showNotification(paste("Error loading kobo:", e$message), type = "error")
+
+      # 🔹 Disable the download button if there’s an error
+      shinyjs::disable("download_dap")
     })
   })
 
@@ -671,6 +679,8 @@ server <- function(input, output, session) {
     filename = function() { paste("DAP_Template_", Sys.Date(), ".xlsx", sep = "") },
 
     content = function(file) {
+      req(input$kobo_file)  # blocks download until Kobo file exists
+
       # Ensure dap_template is properly defined inside the function
 
       aok_si_dap <- read_excel(list.files('input/data/', pattern="standard_si_dap", full.names = T), sheet="standard_aok_si_dap")
@@ -838,7 +848,7 @@ server <- function(input, output, session) {
 
     cat('admin bounds for area index:',admin_bounds_area_index(), '\n')
 
-    evaluated_admin_bounds <- admin_bounds_area_index()[1]
+    evaluated_admin_bounds <- admin_bounds_area_index()
 
     cat('admin bounds for area index:',evaluated_admin_bounds, '\n')
     print('Evaluated')

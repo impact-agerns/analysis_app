@@ -1,6 +1,9 @@
 # UI
+
+
 ui <- shinyUI(
   fluidPage(
+    useShinyjs(),  # must be included somewhere in your UI
     tags$head(
       tags$style(HTML("
         body, .container-fluid {
@@ -128,14 +131,14 @@ ui <- shinyUI(
                              width = NULL,
                              tags$div(
                                tags$h4("Data Analysis", style = "color: var(--primary-color);"),
-                               tags$h5(style = "color: gray;", "After clicking on Run Aggregation in the previous step, select the (first) variable (indicator) to use as the level of analysis (typically this will be the admin2). Optionally, if further disaggregation is desired, select a second variable to disaggregate by (in most cases, this optional step is not necessary). The Analysis Data can be used for any information products displaying area-level results (e.g. mapping of summarised values at admin 2 level).")
+                               tags$h5(style = "color: gray;", "After clicking on Run Aggregation in the previous step, select the variable (indicator) to use as the level of analysis (typically this will be the admin2). Optionally, if further disaggregation is desired, select a second variable to disaggregate by (in most cases, this optional step is not necessary). The Analysis Data can be used for any information products displaying area-level results (e.g. mapping of summarised values at admin 2 level).")
                              ),
                              selectInput("disaggregate_by_1",
-                                         label = tags$span(style = "color: var(--primary-color);", "Choose variable(s) for main analysis (required)"),
-                                         choices = NULL, multiple = TRUE),
+                                         label = tags$span(style = "color: var(--primary-color);", "Choose variable for main analysis (required)"),
+                                         choices = NULL, multiple = F),
                              selectInput("disaggregate_by_2",
-                                         label = tags$span(style = "color: var(--primary-color);", "Choose variable(s) for second (optional) analysis"),
-                                         choices = NULL, multiple = TRUE),
+                                         label = tags$span(style = "color: var(--primary-color);", "Choose variable for second (optional) analysis"),
+                                         choices = NULL, multiple = F),
                              actionButton("run_analysis", "Run Analysis"),
                              # actionButton("reset_analysis", "Reset Analysis"),  # Reset button added
                              verbatimTextOutput("analysis_status"),
@@ -243,9 +246,9 @@ ui <- shinyUI(
                                     height = 180,
                                     tags$div(
                                       tags$h4("Download DAP Template", style = "color: var(--primary-color);"),
-                                      tags$h5(style = "color: gray;", "Download the Data Analysis Plan (DAP) template based on the uploaded Kobo tool.\nThe document also contains the global standard Severity Index DAP for UNDAC and AoK as reference and guidance.")
+                                      tags$h5(style = "color: gray;", "Download the Data Analysis Plan (DAP) template. Please uploaded the Kobo tool first in 'Importing data'.\nThe document also contains the global standard Severity Index DAP for UNDAC and AoK as reference and guidance.")
                                     ),
-                                    downloadButton("download_dap", "Download Template")
+                                    downloadButton("download_dap", "Download Template", disabled = TRUE)
                                   )
                   ),
                     column(width = 4,
@@ -257,7 +260,7 @@ ui <- shinyUI(
                              height = 180,
                              tags$div(
                                tags$h4("Import Data Analysis plan", style = "color: var(--primary-color);"),
-                               tags$h5(style = "color: gray;", "Upload the Index DAP based on the template. Save DAP in the first sheet.")
+                               tags$h5(style = "color: gray;", "Upload the Severity Index DAP based on the template. The SI DAP severity values have to be assigned if not matching the standard DAP. Save the DAP in the first sheet.")
                              ),
                              fileInput("dap_file",
                                        label = tags$span(style = "color: var(--primary-color);", "Upload Data DAP (xlsx)"), accept = ".xlsx")
@@ -362,7 +365,7 @@ ui <- shinyUI(
                              height = 180,
                              tags$div(
                                tags$h4("Select administrative boundaries", style = "color: var(--primary-color);"),
-                               tags$h5(style = "color: gray;", "Important: \nSelect the admin1, admin2, admin3, admin4 (e.g. settlement/village) boundaries in that order")
+                               tags$h5(style = "color: gray;", "Important: \nSelect ALL the admin1, admin2, admin3, admin4 (e.g. settlement/village) boundaries in that order")
                              ),
                              selectInput("select_admin_bounds",
                                          label = tags$span(style = "color: var(--primary-color);", "Select all available admin boundaries"),

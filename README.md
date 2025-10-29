@@ -23,4 +23,4 @@ For guidance on structured community KI surveys, refer to the AoK Guidance Note 
 
 For any questions contact Alvaro Gerns (alvaro.gerns\@impact-initiatives.org)
 
-Github repository (<https://github.com/agerns/analysis_app>)
+Github repository (<https://github.com/impact-agerns/analysis_app>)

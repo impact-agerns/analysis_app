@@ -46,4 +46,4 @@ The AoK SI is based on the IMPACT Acute Needs Analytical Framework (ANF) and oth
 
 The detailed Terms of Reference (under review) for the AoK Severity Index can be found here: [TOR](aok_severity_index_tor_Feb2025_shareable.pdf)
 
-Github repository to access scripts (<https://github.com/agerns/analysis_app>)
+Github repository to access scripts (<https://github.com/impact-agerns/analysis_app>)
