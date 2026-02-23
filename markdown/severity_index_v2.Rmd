@@ -1,0 +1,510 @@
+---
+title: "Severity Index Report"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+params:
+  admin_level_index: NULL
+  selected_index_method: NULL
+  select_admin_bounds: NULL
+  data_file: NULL
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(knitr)
+library(kableExtra)
+
+knitr::opts_chunk$set(
+  echo    = FALSE,
+  eval    = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  results = "asis",
+  fig.width  = 10,
+  fig.height = 5
+)
+```
+
+```{r load-data, include=FALSE, results="hide"}
+# ── Data loading ──────────────────────────────────────────────────────────────
+# params$data_file is always set when rendered from Shiny.
+# list.files() fallback is only for local development.
+if (!is.null(params$data_file)) {
+
+  data <- readRDS(params$data_file)
+
+} else {
+
+  local_file <- list.files(pattern = "index_data\\.rds", full.names = TRUE, recursive = TRUE)
+  if (length(local_file) == 0) stop("No local index_data.rds found for development knit.")
+  data <- readRDS(local_file[1])
+
+}
+
+data <- data %>% mutate(severity_value = as.numeric(severity_value))
+```
+
+```{r resolve-params, include=FALSE, results="hide"}
+# ── Admin boundaries ──────────────────────────────────────────────────────────
+all_possible_admins <- c("admin1", "admin2", "admin3", "admin4")
+
+# Intersect declared bounds with what actually exists as columns
+select_admin_bounds <- if (!is.null(params$select_admin_bounds)) {
+  params$select_admin_bounds
+} else {
+  all_possible_admins[all_possible_admins %in% names(data)]
+}
+
+admin_boundaries <- all_possible_admins[all_possible_admins %in% select_admin_bounds &
+                                          all_possible_admins %in% names(data)]
+
+# Settlement = admin4 present; otherwise lowest level is area (admin3 or less)
+has_settlement <- "admin4" %in% admin_boundaries
+lowest_admin   <- tail(admin_boundaries, 1)   # e.g. "admin2", "admin3", "admin4"
+
+# ── Admin level for area ranking ──────────────────────────────────────────────
+admin_level <- if (!is.null(params$admin_level_index) && length(params$admin_level_index) >= 1) {
+  al <- params$admin_level_index[[1]]
+  if (al %in% admin_boundaries) al else lowest_admin
+} else {
+  lowest_admin
+}
+
+# ── Methods ───────────────────────────────────────────────────────────────────
+selected_methods <- if (!is.null(params$selected_index_method) &&
+                        length(params$selected_index_method) > 0) {
+  params$selected_index_method
+} else {
+  # Auto-detect from columns present
+  if ("flag4"   %in% names(data)) "flag4"
+  else if ("flag3" %in% names(data)) "flag3"
+  else if ("score_index_settlement" %in% names(data)) "score"
+  else stop("Could not detect any supported index method in the data.")
+}
+
+# ── Column resolver (mirrors sensitivity analysis Rmd) ────────────────────────
+resolve_method_cols <- function(method, df_names) {
+  candidates <- list(
+    "flag3" = list(
+      flag_col       = "flag3",
+      settlement_col = "flag3_settlement",
+      sector_col     = "flag3_sector",
+      area_col       = "mean_flag3_area",
+      label          = "Flag 3"
+    ),
+    "flag4" = list(
+      flag_col       = "flag4",
+      settlement_col = "flag4_settlement",
+      sector_col     = "flag4_sector",
+      area_col       = "mean_flag4_area",
+      label          = "Flag 4"
+    ),
+    "flag4+" = list(
+      flag_col       = "flag4_plus",
+      settlement_col = "flag4_plus_settlement",
+      sector_col     = "flag4_plus_sector",
+      area_col       = "mean_flag4_plus_area",
+      label          = "Flag 4+"
+    ),
+    "proportion3" = list(
+      flag_col       = "flag3",
+      settlement_col = "proportion3_settlement",
+      sector_col     = "proportion3_sector",
+      area_col       = "mean_proportion3_area",
+      label          = "Proportion 3"
+    ),
+    "proportion4" = list(
+      flag_col       = "flag4",
+      settlement_col = "proportion4_settlement",
+      sector_col     = "proportion4_sector",
+      area_col       = "mean_proportion4_area",
+      label          = "Proportion 4"
+    ),
+    "proportion4+" = list(
+      flag_col       = "flag4_plus",
+      settlement_col = "proportion4_plus_settlement",
+      sector_col     = "proportion4_plus_sector",
+      area_col       = "mean_proportion4_plus_area",
+      label          = "Proportion 4+"
+    ),
+    "score" = list(
+      flag_col       = NULL,
+      settlement_col = "score_index_settlement",
+      sector_col     = "score_index_sector",
+      area_col       = "score_index_area",
+      label          = "Score Index"
+    )
+  )
+
+  cols <- if (length(method) == 1L && !is.na(method) && method %in% names(candidates)) {
+    candidates[[method]]
+  } else {
+    found <- NULL
+    for (m in names(candidates)) {
+      fc <- candidates[[m]]$flag_col
+      if (is.null(fc) || (length(fc) == 1L && fc %in% df_names)) { found <- candidates[[m]]; break }
+    }
+    if (is.null(found)) candidates[[1]] else found
+  }
+
+  col_entries <- setdiff(names(cols), "label")
+  cols[col_entries] <- lapply(cols[col_entries], function(v) {
+    if (is.null(v) || !is.character(v) || length(v) != 1L) return(v)
+    if (v %in% df_names) v else NULL
+  })
+  cols
+}
+
+col_exists <- function(col, df = data) !is.null(col) && col %in% names(df)
+
+# ── Shared colour palette ─────────────────────────────────────────────────────
+custom_colors <- c(
+  "fsl"     = "#F08080",
+  "shl"     = "#D2B48C",
+  "shelter" = "#D2B48C",
+  "wsh"     = "#ADD8E6",
+  "wash"    = "#ADD8E6",
+  "hea"     = "#DDA0DD",
+  "pop"     = "#FFD700",
+  "pro"     = "#A9A9A9",
+  "cm"      = "#F4A460",
+  "edu"     = "#90EE90",
+  "aap"     = "#FFB6C1"
+)
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+# Render a styled kable
+styled_kable <- function(df) {
+  df %>%
+    knitr::kable(format = "html", escape = FALSE) %>%
+    kableExtra::kable_styling(
+      full_width        = FALSE,
+      bootstrap_options = c("hover", "condensed", "responsive")
+    )
+}
+
+# Horizontal bar chart
+bar_chart <- function(df, x_col, y_col, fill_col = NULL, title = "", x_label = "") {
+  aes_args <- if (!is.null(fill_col)) {
+    aes(x = reorder(.data[[x_col]], .data[[y_col]]),
+        y = .data[[y_col]],
+        fill = .data[[fill_col]])
+  } else {
+    aes(x = reorder(.data[[x_col]], .data[[y_col]]),
+        y = .data[[y_col]])
+  }
+  p <- ggplot(df, aes_args) +
+    geom_bar(stat = "identity") +
+    coord_flip() +
+    theme_minimal() +
+    labs(title = title, x = "", y = x_label, fill = "Sector")
+  if (!is.null(fill_col)) p <- p + scale_fill_manual(values = custom_colors, na.value = "grey70")
+  p
+}
+
+# Pretty section divider
+section_note <- function(text) cat(paste0("\n> ", text, "\n\n"))
+```
+
+---
+
+```{r report-header, results='asis'}
+# Summary callout shown at the top of the rendered report
+active_labels <- sapply(selected_methods, function(m) {
+  resolve_method_cols(m, names(data))$label
+})
+
+cat("## Report Summary\n\n")
+cat(paste0(
+  "| | |\n",
+  "|---|---|\n",
+  "| **Method(s)** | ", paste(active_labels, collapse = ", "), " |\n",
+  "| **Admin levels** | ", paste(admin_boundaries, collapse = " › "), " |\n",
+  "| **Area ranking level** | ", admin_level, " |\n",
+  "| **Settlement data** | ",
+  ifelse(has_settlement, "✔ Available (admin4 present)",
+         paste0("✘ Not available — lowest level is ", lowest_admin)),
+  " |\n\n"
+))
+```
+
+---
+
+# Results {.tabset}
+
+## Indicator {.tabset}
+
+Top 10 indicators by severity across all `r lowest_admin` units.
+
+```{r indicator-tabs, results='asis'}
+for (method in selected_methods) {
+
+  mc          <- resolve_method_cols(method, names(data))
+  flag_col    <- mc$flag_col
+  is_flag     <- str_detect(method, "flag")
+  is_prop     <- str_detect(method, "proportion")
+  label       <- mc$label
+
+  cat(paste0("\n### ", label, "\n\n"))
+
+  # ── Build summary ──────────────────────────────────────────────────────────
+  if (is_flag && col_exists(flag_col)) {
+
+    top_ind <- data %>%
+      select(question, sector, all_of(flag_col)) %>%
+      group_by(question, sector) %>%
+      summarise(value = sum(.data[[flag_col]], na.rm = TRUE), .groups = "drop") %>%
+      arrange(desc(value)) %>%
+      slice_head(n = 10) %>%
+      mutate(Rank = row_number(), .before = 1)
+
+    y_label <- paste("# units flagged —", label)
+
+  } else {
+
+    # proportion or score: mean of severity_value
+    top_ind <- data %>%
+      select(question, sector, severity_value) %>%
+      group_by(question, sector) %>%
+      summarise(value = mean(severity_value, na.rm = TRUE), .groups = "drop") %>%
+      arrange(desc(value)) %>%
+      slice_head(n = 10) %>%
+      mutate(
+        Rank  = row_number(), .before = 1,
+        value = round(value, 2)
+      )
+
+    y_label <- paste("Mean severity value —", label)
+
+  }
+
+  # ── Table ──────────────────────────────────────────────────────────────────
+  top_ind %>%
+    rename(Indicator = question, Sector = sector, !!y_label := value) %>%
+    styled_kable() %>%
+    cat()
+
+  cat("\n\n")
+
+  # ── Chart ──────────────────────────────────────────────────────────────────
+  p <- bar_chart(top_ind, x_col = "question", y_col = "value",
+                 fill_col = "sector",
+                 title    = paste("Top Indicators —", label),
+                 x_label  = y_label)
+  print(p)
+  cat("\n\n")
+}
+```
+
+## Sector {.tabset}
+
+Severity aggregated to sector level.
+
+```{r sector-tabs, results='asis'}
+for (method in selected_methods) {
+
+  mc         <- resolve_method_cols(method, names(data))
+  sector_col <- mc$sector_col
+  label      <- mc$label
+  is_flag    <- str_detect(method, "flag")
+
+  cat(paste0("\n### ", label, "\n\n"))
+
+  if (!col_exists(sector_col)) {
+    cat(paste0("*Column `", sector_col, "` not found in data.*\n\n"))
+    next
+  }
+
+  top_sec <- data %>%
+    select(all_of(admin_boundaries), sector, all_of(sector_col)) %>%
+    distinct()
+
+  if (is_flag) {
+
+    top_sec <- top_sec %>%
+      group_by(sector) %>%
+      summarise(value = sum(.data[[sector_col]], na.rm = TRUE), .groups = "drop") %>%
+      arrange(desc(value)) %>%
+      slice_head(n = 10) %>%
+      mutate(Rank = row_number(), .before = 1)
+
+    y_label <- paste("# units flagged —", label)
+
+  } else {
+
+    # proportion / score: include error messages where available
+    has_err <- "error_message_sector" %in% names(data)
+
+    top_sec <- data %>%
+      select(all_of(admin_boundaries), sector, all_of(sector_col),
+             any_of("error_message_sector")) %>%
+      distinct() %>%
+      group_by(sector) %>%
+      summarise(
+        value         = mean(.data[[sector_col]], na.rm = TRUE),
+        error_message = if (has_err) max(error_message_sector, na.rm = TRUE) else NA_character_,
+        .groups = "drop"
+      ) %>%
+      mutate(
+        display = ifelse(
+          is.na(value),
+          error_message,
+          paste0(round(value, 2), if (str_detect(method, "proportion")) " %" else "")
+        )
+      ) %>%
+      arrange(desc(value)) %>%
+      slice_head(n = 10) %>%
+      mutate(Rank = row_number(), .before = 1)
+
+    y_label <- paste("Mean —", label)
+
+  }
+
+  # ── Table ──────────────────────────────────────────────────────────────────
+  tbl_sec <- if (is_flag) {
+    top_sec %>% rename(Sector = sector, !!y_label := value)
+  } else {
+    top_sec %>%
+      select(Rank, Sector = sector, !!y_label := display) %>%
+      select(-any_of("error_message"))
+  }
+
+  tbl_sec %>% styled_kable() %>% cat()
+  cat("\n\n")
+
+  # ── Chart (numeric only) ──────────────────────────────────────────────────
+  chart_data <- if (is_flag) top_sec else top_sec %>% filter(!is.na(value))
+
+  if (nrow(chart_data) > 0) {
+    p <- bar_chart(chart_data, x_col = "sector", y_col = "value",
+                   fill_col = "sector",
+                   title    = paste("Sector Severity —", label),
+                   x_label  = y_label)
+    print(p)
+  }
+
+  cat("\n\n")
+}
+```
+
+## `r if (has_settlement) "Settlement" else paste("Area (", lowest_admin, ")", sep="")` {.tabset}
+
+```{r settlement-area-intro, results='asis'}
+if (has_settlement) {
+  cat("Top 10 units at **settlement level** (admin4).\n\n")
+} else {
+  cat(paste0(
+    "> ⚠️ **No settlement data:** `admin4` is not present. ",
+    "Showing results at the **", lowest_admin, "** level instead.\n\n"
+  ))
+}
+```
+
+```{r settlement-tabs, results='asis'}
+for (method in selected_methods) {
+
+  mc    <- resolve_method_cols(method, names(data))
+  label <- mc$label
+
+  # Use settlement col if available, otherwise fall back to area col
+  rank_col <- if (has_settlement && col_exists(mc$settlement_col)) {
+    mc$settlement_col
+  } else if (col_exists(mc$area_col)) {
+    mc$area_col
+  } else {
+    NULL
+  }
+
+  cat(paste0("\n### ", label, "\n\n"))
+
+  if (is.null(rank_col)) {
+    cat(paste0("*No suitable column found for method `", method, "`.*\n\n"))
+    next
+  }
+
+  # Group columns: either all admin_boundaries (settlement) or up to lowest_admin (area)
+  group_cols <- if (has_settlement) admin_boundaries else admin_boundaries
+
+  top_units <- data %>%
+    select(all_of(group_cols), all_of(rank_col)) %>%
+    distinct() %>%
+    arrange(desc(.data[[rank_col]])) %>%
+    slice_head(n = 10) %>%
+    mutate(Rank = row_number(), .before = 1)
+
+  col_label <- if (has_settlement) {
+    paste("Settlement value —", label)
+  } else {
+    paste(lowest_admin, "value —", label)
+  }
+
+  top_units %>%
+    rename(!!col_label := all_of(rank_col)) %>%
+    styled_kable() %>%
+    cat()
+
+  cat("\n\n")
+}
+```
+
+## Area {.tabset}
+
+Top 10 areas at the **`r admin_level`** level.
+
+```{r area-tabs, results='asis'}
+for (method in selected_methods) {
+
+  mc       <- resolve_method_cols(method, names(data))
+  area_col <- mc$area_col
+  label    <- mc$label
+
+  cat(paste0("\n### ", label, "\n\n"))
+
+  if (!col_exists(area_col)) {
+    cat(paste0("*Column `", area_col, "` not found for method `", method, "`.*\n\n"))
+    next
+  }
+
+  top_areas <- data %>%
+    select(all_of(admin_level), all_of(area_col)) %>%
+    distinct() %>%
+    arrange(desc(.data[[area_col]])) %>%
+    slice_head(n = 10) %>%
+    mutate(Rank = row_number(), .before = 1)
+
+  area_label <- paste("Area value —", label)
+
+  top_areas %>%
+    rename(!!area_label := all_of(area_col)) %>%
+    styled_kable() %>%
+    cat()
+
+  cat("\n\n")
+
+  # ── Lollipop chart — cleaner than bars for area-level ranking ─────────────
+  p <- ggplot(top_areas,
+              aes(x = reorder(.data[[admin_level]], .data[[area_col]]),
+                  y = .data[[area_col]])) +
+    geom_segment(aes(xend = .data[[admin_level]], yend = 0),
+                 colour = "grey70", linewidth = 0.8) +
+    geom_point(colour = "#2C7BB6", size = 4) +
+    coord_flip() +
+    theme_minimal() +
+    labs(title = paste("Top Areas —", label, "(", admin_level, ")"),
+         x = "", y = area_label)
+
+  print(p)
+  cat("\n\n")
+}
+```

@@ -62,7 +62,7 @@ local <- interactive() || knitr::is_html_output()  # Adjust based on your case
 if (local){
 
     # data_index <- read_excel(list.files('markdown/',pattern="severity_index_data_ssdr3", full.names = T), sheet="Raw data") %>%
-  data_index <- read_excel(list.files(pattern="severity_index_data_ssdr3", full.names = T), sheet="Raw data") %>%
+  data_index <- read.xlsx(list.files(pattern="severity_index_data_hti", full.names = T), sheet="Raw data") %>%
     mutate(severity_value = as.numeric(severity_value))
   
 } else {
@@ -71,6 +71,9 @@ if (local){
     mutate(severity_value = as.numeric(severity_value))
   
 }
+
+
+admin_boundaries <- admin_boundaries[admin_boundaries %in% names(data_index)]
 
 ```
 

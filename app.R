@@ -943,39 +943,62 @@ server <- function(input, output, session) {
     )
   })
 
-  observeEvent(input$generate_index_html, {
-    req(input$admin_level_index, input$selected_index_method)
-    req(data_index_out())
+  # ── Reactive value to track whether the report has been rendered ──────────────
+index_html_ready <- reactiveVal(FALSE)
+index_html_path  <- reactiveVal(NULL)
 
-    # Define the file path
-    if (Sys.getenv("SHINY_PORT") != "") {
-      # Running on shinyapps.io b Use temp directory
-      temp_file <- file.path(tempdir(), "index_data.rds")
-    } else {
-      # Running locally b Use a local folder
-      temp_file <- "markdown/index_data.rds"
-    }
+  # ── Render the report ─────────────────────────────────────────────────────────
+observeEvent(input$generate_index_html, {
+req(input$admin_level_index, input$selected_index_method)
+req(data_index_out())
 
-    saveRDS(data_index_out(), file = temp_file)
+# Reset state
+index_html_ready(FALSE)
+index_html_path(NULL)
+  output$msg_report_generated <- renderText("Generating report, please wait...")
 
+  # Save data to a temp RDS file
+  temp_rds <- file.path(tempdir(), "index_data.rds")
+  saveRDS(data_index_out(), file = temp_rds)
 
-    rmarkdown::render("markdown/severity_index.Rmd", output_file = "severity_index.html",
-                      params = list(
-                        admin_level_index = input$admin_level_index,
-                        selected_index_method = input$selected_index_method,
-                        data_file = temp_file
-                      ))
-    output$msg_report_generated <- renderText("Report generated successfully!")
+  # Render to a stable temp path (NOT relative working dir)
+  out_html <- file.path(tempdir(), "severity_index.html")
 
-    output$download_index_html <- downloadHandler(
-      filename = "severity_index.html",
-      content = function(file) {
-        req(input$generate_index_html)
-        file.copy("severity_index.html", file, overwrite = TRUE)
-      }
+  tryCatch({
+    rmarkdown::render(
+      input       = "markdown/severity_index_v2.Rmd",
+      output_file = out_html,
+      params      = list(
+        admin_level_index     = input$admin_level_index,
+        selected_index_method = input$selected_index_method,
+        data_file             = temp_rds
+      ),
+      envir = new.env(parent = globalenv())  # isolate render environment
     )
 
+    index_html_path(out_html)
+    index_html_ready(TRUE)
+    output$msg_report_generated <- renderText("Report generated successfully! Click Download to save.")
+
+  }, error = function(e) {
+    output$msg_report_generated <- renderText(paste("Error generating report:", e$message))
   })
+})
+
+# ── Download handler defined at top level (always registered) ─────────────────
+output$download_index_html <- downloadHandler(
+  filename = function() {
+    "severity_index.html"
+  },
+  content = function(file) {
+    req(index_html_ready())        # block download if not yet rendered
+    req(index_html_path())
+    file.copy(index_html_path(), file, overwrite = TRUE)
+  }
+)
+
+
+
 
   observeEvent(input$generate_sensitivity_analysis, {
     req(input$admin_level_index, input$selected_index_method)
@@ -998,7 +1021,7 @@ server <- function(input, output, session) {
 
     cat("Data saved to temp file: ", output_file, "\n")
 
-    rmarkdown::render("markdown/flag_index_sensitivity_analysis.Rmd", output_file = output_file,
+    rmarkdown::render("markdown/flag_index_sensitivity_Analysis_v2.Rmd", output_file = output_file,
                       params = list(
                         admin_level_index = input$admin_level_index,
                         selected_index_method = input$selected_index_method,

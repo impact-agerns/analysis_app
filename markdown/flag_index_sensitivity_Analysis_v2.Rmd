@@ -1,0 +1,503 @@
+---
+title: "Settlement Severity Index"
+subtitle: "Sensitivity Analysis"
+output:
+  html_document: 
+    toc: true
+    toc_depth: 4
+    toc_float: true
+    theme: readable
+    fig_width: 8
+    fig_height: 6
+  word_document:
+    toc: no
+    toc_depth: '2'
+    output_dir: "Outputs"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+author: "GEU R&D"
+params:
+  admin_level_index: NULL
+  selected_index_method: NULL
+  data_file: NULL
+editor_options: 
+  chunk_output_type: console
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, eval = T, include = F, warning = F, message = F, cache.lazy = T)
+```
+
+```{r Packages}
+gc()
+```
+
+```{r Parameters}
+input_path <- "input/"
+
+admin_boundaries <- c("admin1", "admin2", "admin3", "admin4")
+```
+
+```{r Import data}
+# params$data_file is always set when rendered from Shiny (via rmarkdown::render).
+# Only fall back to list.files() when genuinely knitting locally without params
+# (i.e. params$data_file is NULL and we are NOT inside a Shiny process).
+if (!is.null(params$data_file)) {
+  
+  # --- Shiny / render() path -------------------------------------------
+  data_index <- readRDS(params$data_file) %>%
+    mutate(severity_value = as.numeric(severity_value))
+  
+} else {
+  
+  # --- Local knit-only fallback (development) ---------------------------
+  local_file <- list.files(pattern = "severity_index_data_hti", full.names = TRUE)
+  
+  if (length(local_file) == 0) {
+    stop(
+      "No data file found. When rendering from Shiny, pass params$data_file. ",
+      "When knitting locally, make sure a file matching 'severity_index_data_hti' ",
+      "exists in the working directory."
+    )
+  }
+  
+  data_index <- read.xlsx(local_file[1], sheet = "Raw data") %>%
+    mutate(severity_value = as.numeric(severity_value))
+  
+}
+
+# Keep only admin boundary columns that actually exist in the data
+admin_boundaries <- admin_boundaries[admin_boundaries %in% names(data_index)]
+
+# Settlement-level data is only meaningful when admin4 is present.
+# Without admin4, the lowest granularity is admin3 (area level).
+has_settlement <- "admin4" %in% admin_boundaries
+```
+
+```{r Detect available index columns}
+# ── Detect which flag/proportion/score columns exist ──────────────────────────
+# The selected_index_method param drives which columns we highlight, but all
+# plots gracefully fall back to whatever columns are actually present.
+
+# Method passed in from Shiny (or NULL when knitting locally)
+selected_method <- if (!is.null(params$selected_index_method)) {
+  params$selected_index_method
+} else {
+  # Auto-detect a sensible default from what exists
+  if ("flag4" %in% names(data_index))        "flag4"
+  else if ("flag3" %in% names(data_index))   "flag3"
+  else if ("flag4_plus" %in% names(data_index)) "flag4+"
+  else if ("proportion4_settlement" %in% names(data_index)) "proportion4"
+  else if ("score_index_settlement" %in% names(data_index)) "score"
+  else NULL
+}
+
+# Helper: map a method string to its column name fragments
+# Returns a named list: flag_col, proportion_settlement_col, proportion_sector_col,
+#                       settlement_col, sector_col, area_col, label
+resolve_method_cols <- function(method, df_names) {
+  
+  candidates <- list(
+    "flag3" = list(
+      flag_col              = "flag3",
+      proportion_settlement = "proportion3_settlement",
+      proportion_sector     = "proportion3_sector",
+      settlement_col        = "flag3_settlement",
+      sector_col            = "flag3_sector",
+      area_col              = "mean_flag3_area",
+      label                 = "Flag 3"
+    ),
+    "flag4" = list(
+      flag_col              = "flag4",
+      proportion_settlement = "proportion4_settlement",
+      proportion_sector     = "proportion4_sector",
+      settlement_col        = "flag4_settlement",
+      sector_col            = "flag4_sector",
+      area_col              = "mean_flag4_area",
+      label                 = "Flag 4"
+    ),
+    "flag4+" = list(
+      flag_col              = "flag4_plus",
+      proportion_settlement = "proportion4_plus_settlement",
+      proportion_sector     = "proportion4_plus_sector",
+      settlement_col        = "flag4_plus_settlement",
+      sector_col            = "flag4_plus_sector",
+      area_col              = "mean_flag4_plus_area",
+      label                 = "Flag 4+"
+    ),
+    "proportion3" = list(
+      flag_col              = "flag3",
+      proportion_settlement = "proportion3_settlement",
+      proportion_sector     = "proportion3_sector",
+      settlement_col        = "proportion3_settlement",
+      sector_col            = "proportion3_sector",
+      area_col              = "mean_proportion3_area",
+      label                 = "Proportion 3"
+    ),
+    "proportion4" = list(
+      flag_col              = "flag4",
+      proportion_settlement = "proportion4_settlement",
+      proportion_sector     = "proportion4_sector",
+      settlement_col        = "proportion4_settlement",
+      sector_col            = "proportion4_sector",
+      area_col              = "mean_proportion4_area",
+      label                 = "Proportion 4"
+    ),
+    "proportion4+" = list(
+      flag_col              = "flag4_plus",
+      proportion_settlement = "proportion4_plus_settlement",
+      proportion_sector     = "proportion4_plus_sector",
+      settlement_col        = "proportion4_plus_settlement",
+      sector_col            = "proportion4_plus_sector",
+      area_col              = "mean_proportion4_plus_area",
+      label                 = "Proportion 4+"
+    ),
+    "score" = list(
+      flag_col              = NULL,
+      proportion_settlement = "proportion4_settlement",  # fallback for freq section
+      proportion_sector     = "proportion4_sector",
+      settlement_col        = "score_index_settlement",
+      sector_col            = "score_index_sector",
+      area_col              = "score_index_area",
+      label                 = "Score Index"
+    )
+  )
+  
+  # Resolve the requested method; fall back gracefully
+  cols <- if (length(method) == 1L && !is.na(method) && method %in% names(candidates)) {
+    candidates[[method]]
+  } else {
+    # Pick the first method whose flag_col actually exists in the data
+    found <- NULL
+    for (m in names(candidates)) {
+      fc <- candidates[[m]]$flag_col
+      if (is.null(fc) || (length(fc) == 1L && fc %in% df_names)) {
+        found <- candidates[[m]]
+        break
+      }
+    }
+    if (is.null(found)) candidates[[1]] else found
+  }
+
+  # Null-out any column name that doesn't actually exist in the data.
+  # "label" is a plain string, not a column name, so it must be preserved.
+  col_entries <- setdiff(names(cols), "label")
+  cols[col_entries] <- lapply(cols[col_entries], function(v) {
+    if (is.null(v) || !is.character(v) || length(v) != 1L) return(v)
+    if (v %in% df_names) v else NULL
+  })
+  cols
+}
+
+method_cols <- resolve_method_cols(selected_method, names(data_index))
+
+# Convenience accessor with a clear error message
+col_exists <- function(col) !is.null(col) && col %in% names(data_index)
+
+# Sector colour palette (extend freely)
+custom_colors <- c(
+  "fsl" = "#F08080",
+  "shl" = "#D2B48C",
+  "wsh" = "#ADD8E6",
+  "hea" = "#DDA0DD",
+  "pop" = "#FFD700",
+  "pro" = "#A9A9A9",
+  "cm"  = "#F4A460",
+  "edu" = "#90EE90"
+)
+
+# Sectors actually present in the data
+available_sectors <- sort(unique(data_index$sector))
+```
+
+# Sensitivity Analysis — `r method_cols$label` {.tabset}
+
+```{r method-summary, include=TRUE, results='asis'}
+active_label <- if (!is.null(method_cols$label) && nchar(method_cols$label) > 0) {
+  method_cols$label
+} else if (!is.null(selected_method)) {
+  selected_method   # fall back to the raw param string
+} else {
+  "Unknown (no method selected)"
+}
+
+cat("> **Active method:**", active_label, "\n\n")
+cat("> **Admin levels used:**", paste(admin_boundaries, collapse = " › "), "\n\n")
+cat("> **Settlement-level analysis:**",
+    ifelse(has_settlement,
+           "✔ Available (admin4 present)",
+           "✘ Not available — lowest granularity is area (admin3)"),
+    "\n\n")
+```
+
+---
+
+## Missing Values
+
+Missing values matter because the Flag Index counts indicators that
+*exceed* a severity threshold. Values that are missing are treated as
+"not severe", so it is important to confirm that assumption is valid.
+
+```{r flag_na_data}
+data_na <- data_index %>%
+  filter(is.na(severity_value))
+```
+
+```{r flag_na_plot, include=TRUE}
+if (nrow(data_na) == 0) {
+  ggplot() +
+    annotate("text", x = 1, y = 1,
+             label = "No NA values in this Index :)",
+             size = 6, hjust = 0.5, vjust = 0.5) +
+    theme_void()
+} else {
+  ggplot(data_na, aes(x = question)) +
+    geom_bar() +
+    coord_flip() +
+    labs(title = "Distribution of NAs Across Questions",
+         x = "Question", y = "Number of NAs") +
+    theme_minimal()
+}
+```
+
+---
+
+## Severity Frequency
+
+How often is each indicator above the active severity threshold? A very
+high frequency may indicate a threshold that is too lenient — or genuine
+widespread severity. Contextual knowledge is essential here.
+
+```{r severity_freq_plot, include=TRUE}
+flag_col      <- method_cols$flag_col
+freq_y_label  <- if (has_settlement) "Number of Settlements" else "Number of Areas (admin3)"
+
+if (col_exists(flag_col)) {
+  
+  data_flagged <- data_index %>%
+    filter(.data[[flag_col]] == 1) %>%
+    group_by(across(all_of(admin_boundaries)), question, sector) %>%
+    summarise(count = n(), .groups = "drop")
+  
+  if (nrow(data_flagged) == 0) {
+    ggplot() +
+      annotate("text", x = 1, y = 1,
+               label = paste0("No indicators flagged above ", method_cols$label, " threshold."),
+               size = 5, hjust = 0.5, vjust = 0.5) +
+      theme_void()
+  } else {
+    ggplot(data_flagged,
+           aes(x = reorder(question, count, FUN = sum), y = count, fill = sector)) +
+      geom_bar(stat = "identity") +
+      coord_flip() +
+      labs(
+        title = paste("Indicators above", method_cols$label, "Severity"),
+        x = "Indicator", y = freq_y_label
+      ) +
+      scale_fill_manual(values = custom_colors, na.value = "grey70") +
+      theme_minimal()
+  }
+  
+} else {
+  # Score method — show mean score per indicator instead
+  if ("score_index_sector" %in% names(data_index)) {
+    data_score_summary <- data_index %>%
+      group_by(question, sector) %>%
+      summarise(mean_score = mean(score_index_sector, na.rm = TRUE), .groups = "drop")
+    
+    ggplot(data_score_summary,
+           aes(x = reorder(question, mean_score), y = mean_score, fill = sector)) +
+      geom_bar(stat = "identity") +
+      coord_flip() +
+      labs(title = "Mean Score Index per Indicator",
+           x = "Indicator", y = "Mean Score") +
+      scale_fill_manual(values = custom_colors, na.value = "grey70") +
+      theme_minimal()
+  } else {
+    ggplot() +
+      annotate("text", x = 1, y = 1,
+               label = paste("Column", flag_col, "not found in data."),
+               size = 5, hjust = 0.5) +
+      theme_void()
+  }
+}
+```
+
+---
+
+## Distribution
+
+```{r distribution_header, include=TRUE, results='asis'}
+if (has_settlement) {
+  cat("Distribution of the selected index across **settlements** (admin4).\n\n")
+} else {
+  cat(
+    "> ⚠️ **No settlement-level data:** `admin4` is not present in this dataset.",
+    "The distribution below is shown at the **area level** (admin3) instead.\n\n"
+  )
+}
+```
+
+```{r distribution_plot, include=TRUE}
+# Choose the appropriate column and grouping level depending on data granularity
+if (has_settlement) {
+  dist_col   <- method_cols$settlement_col
+  dist_level <- "Settlements"
+  # Unique rows at settlement level
+  data_dist <- data_index %>%
+    select(all_of(admin_boundaries),
+           any_of(names(data_index)[grepl("settlement|score_index_settlement", names(data_index))])) %>%
+    distinct()
+} else {
+  dist_col   <- method_cols$area_col
+  dist_level <- "Areas (admin3)"
+  # Unique rows at area level (admin1–admin3)
+  area_admins <- admin_boundaries[admin_boundaries != "admin4"]
+  data_dist <- data_index %>%
+    select(all_of(area_admins),
+           any_of(names(data_index)[grepl("area|score_index_area", names(data_index))])) %>%
+    distinct()
+}
+
+if (col_exists(dist_col)) {
+
+  x_label <- dplyr::case_when(
+    grepl("proportion", dist_col) ~ paste("Proportion of indicators —", method_cols$label),
+    grepl("score",      dist_col) ~ paste("Score Index (", tolower(dist_level), ")", sep = ""),
+    grepl("flag|mean",  dist_col) ~ paste("# indicators flagged —", method_cols$label),
+    TRUE ~ dist_col
+  )
+
+  ggplot(data_dist, aes(x = .data[[dist_col]])) +
+    geom_bar() +
+    labs(
+      title = paste("Distribution of", method_cols$label, "Index across", dist_level),
+      x = x_label,
+      y = paste("Number of", dist_level)
+    ) +
+    theme_minimal()
+
+} else {
+  ggplot() +
+    annotate("text", x = 1, y = 1,
+             label = paste0("Column '", dist_col, "' not available in data."),
+             size = 5, hjust = 0.5) +
+    theme_void()
+}
+```
+
+---
+
+## Sector Information
+
+Maximum observed index value per sector for the active method.
+
+```{r sector_max_data}
+sector_col <- method_cols$sector_col
+
+if (col_exists(sector_col)) {
+  max_values <- data_index %>%
+    group_by(sector) %>%
+    summarise(max_value = max(.data[[sector_col]], na.rm = TRUE), .groups = "drop") %>%
+    arrange(desc(max_value))
+} else {
+  max_values <- NULL
+}
+```
+
+```{r sector_max_plot, include=TRUE}
+if (!is.null(max_values) && nrow(max_values) > 0) {
+  ggplot(max_values, aes(x = reorder(sector, max_value), y = max_value)) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    coord_flip() +
+    labs(
+      title = paste("Maximum", method_cols$label, "Index per Sector"),
+      x = "Sector",
+      y = paste("Max", method_cols$label)
+    ) +
+    theme_minimal()
+} else {
+  ggplot() +
+    annotate("text", x = 1, y = 1,
+             label = paste("Sector column '", sector_col, "' not available in data.", sep = ""),
+             size = 5, hjust = 0.5) +
+    theme_void()
+}
+```
+
+*These bars represent the maximum possible severity per sector under the
+selected method, which is useful when considering normalisation.*
+
+---
+
+## Distributions & Correlations {.tabset}
+
+Severity value distributions and inter-indicator correlation matrices,
+split by sector. Only sectors present in the data are shown.
+
+```{r sector_tabs, include=TRUE, results='asis'}
+
+for (sec in available_sectors) {
+  
+  # Open tab
+  cat("\n\n###", toupper(sec), "\n\n")
+  
+  data_sector <- data_index %>% filter(sector == sec)
+  
+  # ── Ridge plot ───────────────────────────────────────────────────────────────
+  if (nrow(data_sector) > 0 && length(unique(data_sector$question)) >= 1) {
+    
+    p_ridge <- ggplot(data_sector,
+                      aes(x = severity_value, y = question, fill = question)) +
+      geom_density_ridges(scale = 0.9) +
+      theme_ridges() +
+      theme(legend.position = "none") +
+      scale_x_continuous(limits = c(1, 5), breaks = 1:5) +
+      labs(title = paste("Severity Value Distribution —", toupper(sec)),
+           x = "Severity Value", y = NULL)
+    
+    print(p_ridge)
+    cat("\n\n")
+    
+  } else {
+    cat("*No data available for sector:", sec, "*\n\n")
+    next
+  }
+  
+  # ── Correlation matrix ───────────────────────────────────────────────────────
+  data_sector_wide <- data_sector %>%
+    select(all_of(admin_boundaries), question, severity_value) %>%
+    pivot_wider(names_from = question, values_from = severity_value) %>%
+    select(-all_of(admin_boundaries))
+  
+  # Need at least 2 columns and 2 complete rows for a meaningful correlation
+  n_cols <- ncol(data_sector_wide)
+  n_complete <- sum(complete.cases(data_sector_wide))
+  
+  if (n_cols >= 2 && n_complete >= 2) {
+    sector_corr <- tryCatch(
+      cor(data_sector_wide, use = "complete.obs"),
+      error = function(e) NULL
+    )
+    
+    if (!is.null(sector_corr) && !all(is.na(sector_corr))) {
+      corrplot(sector_corr,
+               method   = "color",
+               type     = "upper",
+               tl.col   = "black",
+               tl.srt   = 45,
+               title    = paste("Correlation Matrix —", toupper(sec)),
+               mar      = c(0, 0, 2, 0))
+    } else {
+      cat("*Correlation could not be computed for sector:", sec, "*\n\n")
+    }
+  } else if (n_cols == 1) {
+    cat("*Only one indicator in this sector — correlation matrix not applicable.*\n\n")
+  } else {
+    cat("*Not enough complete observations to compute correlation matrix.*\n\n")
+  }
+  
+  cat("\n\n")
+}
+```
