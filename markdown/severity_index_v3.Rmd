@@ -351,16 +351,34 @@ for (method in selected_methods) {
 
 ## Sector {.tabset}
 
-For **flag/proportion** methods: % of lowest-level units where the sector has at least one flag (comparable across sectors of different sizes).
-For **score**: mean score index value per sector.
+For **flag** methods: % of area-level units where the sector has at least one flagged indicator (denominator = total area-units).
+For **proportion** methods: mean % of indicators flagged within each sector, averaged across area-units (NAs excluded where indicator count < 50% threshold).
+For **score**: mean score index (25th-pct interpolation) per sector, averaged across area-units.
 
 ```{r sector-tabs, results='asis'}
+# Sector columns are computed at area×sector grain (evaluated_admin_bounds in the server,
+# which corresponds to area_admins in the report). We must deduplicate at that grain,
+# NOT at the full admin_boundaries grain, to avoid double-counting across settlements.
+#
+# Column semantics (from si_functions2.R):
+#
+#   flag methods      -> flagX_sector  = SUM of flagX per area×sector  (integer >= 0)
+#                        Interpretation: how many indicators in that sector were flagged
+#                        in this area-unit. To get "% of area-units with any flag in
+#                        sector", check > 0 and divide by total n area-units.
+#
+#   proportion methods -> proportionX_sector = % of indicators flagged in that area×sector
+#                        (already a proportion, 0-100). Display as mean across area-units.
+#
+#   score             -> score_index_sector = 25th-pct score per area×sector (continuous).
+#                        Display as mean across area-units.
+
 for (method in selected_methods) {
 
   mc         <- resolve_method_cols(method, names(data))
   sector_col <- mc$sector_col
   label      <- mc$label
-  is_flag    <- str_detect(method, "flag")
+  is_flag    <- method %in% c("flag3", "flag4", "flag4+")
   is_prop    <- str_detect(method, "proportion")
   is_score   <- method == "score"
 
@@ -370,33 +388,36 @@ for (method in selected_methods) {
     cat(paste0("*Column `", sector_col, "` not available for method `", method, "`.*\n\n")); next
   }
 
-  # Deduplicate at (admin_boundaries x sector) grain.
-  # sector_col is pre-aggregated at this grain so distinct() correctly gives
-  # one value per unit x sector without inflating from indicator-level rows.
+  # Deduplicate at area×sector grain.
+  # area_admins are the admin columns up to and including the user-selected admin_level.
+  # Sector columns from the server are computed at evaluated_admin_bounds = area_admins.
   sec_data <- data %>%
-    select(all_of(admin_boundaries), sector, all_of(sector_col)) %>%
+    select(all_of(area_admins), sector, all_of(sector_col)) %>%
     distinct()
 
-  n_units <- data %>% select(all_of(admin_boundaries)) %>% distinct() %>% nrow()
+  # n_area_units: number of distinct area-level units (the correct denominator for flag %)
+  n_area_units <- data %>% select(all_of(area_admins)) %>% distinct() %>% nrow()
 
-  if (is_flag || is_prop) {
-    # % of units where this sector has at least 1 indicator flagged
+  if (is_flag) {
+    # flagX_sector = count of flagged indicators in this area×sector.
+    # Derive: was the sector flagged at all in this area-unit? (> 0)
+    # Then report: % of area-units where this sector had >= 1 flag.
     top_sec <- sec_data %>%
       group_by(sector) %>%
       summarise(
         n_flagged   = sum(.data[[sector_col]] > 0, na.rm = TRUE),
-        pct_flagged = round(100 * n_flagged / n_units, 1),
+        pct_flagged = round(100 * n_flagged / n_area_units, 1),
         .groups = "drop"
       ) %>%
       arrange(desc(pct_flagged)) %>%
       mutate(Rank = row_number(), .before = 1)
 
-    y_label <- paste("% units with sector flagged -", label)
+    y_label <- paste("% area-units with sector flagged -", label)
 
     top_sec %>%
-      mutate(fraction = paste0(n_flagged, " / ", n_units)) %>%
+      mutate(fraction = paste0(n_flagged, " / ", n_area_units)) %>%
       rename(Sector = sector,
-             `Flagged (n / total units)` = fraction,
+             `Area-units with flag (n / total)` = fraction,
              !!y_label := pct_flagged) %>%
       select(-n_flagged) %>%
       styled_kable() %>% cat()
@@ -404,9 +425,84 @@ for (method in selected_methods) {
 
     print(bar_chart(top_sec, "sector", "pct_flagged", fill_col = "sector",
                     title = paste("Sector -", label), y_label = y_label))
+    cat("\n\n")
+
+  } else if (is_prop) {
+    # proportionX_sector = % of indicators in this sector that are flagged, per area×sector.
+    # Display as the mean proportion across all area-units (mirrors how area_col is shown).
+    # Also surface error_message_sector where applicable.
+    has_err <- "error_message_sector" %in% names(data)
+
+    err_df <- if (has_err) {
+      data %>%
+        select(all_of(area_admins), sector, error_message_sector) %>%
+        distinct() %>%
+        group_by(sector) %>%
+        summarise(error_message = first(na.omit(error_message_sector)), .groups = "drop")
+    } else NULL
+
+    top_sec <- sec_data %>%
+      group_by(sector) %>%
+      summarise(value = mean(.data[[sector_col]], na.rm = TRUE), .groups = "drop") %>%
+      arrange(desc(value)) %>%
+      mutate(Rank = row_number(), .before = 1)
+
+    if (!is.null(err_df)) {
+      top_sec <- left_join(top_sec, err_df, by = "sector")
+    } else {
+      top_sec$error_message <- NA_character_
+    }
+
+    top_sec <- top_sec %>%
+      mutate(display = ifelse(is.na(value),
+                              coalesce(error_message, "N/A"),
+                              paste0(round(value, 1), "%")))
+
+    y_label <- paste("Mean % indicators flagged per area-unit -", label)
+
+    top_sec %>%
+      select(Rank, Sector = sector, !!y_label := display) %>%
+      styled_kable() %>% cat()
+    cat("\n\n")
+
+    chart_data <- top_sec %>% filter(!is.na(value))
+    if (nrow(chart_data) > 0) {
+      print(bar_chart(chart_data, "sector", "value", fill_col = "sector",
+                      title = paste("Sector -", label), y_label = y_label))
+    }
+    cat("\n\n")
+
+    # Note on sectors below threshold
+    if (has_err) {
+      err_sectors <- data %>%
+        select(sector, num_avail_ind_sector, total_ind_per_sector, error_message_sector) %>%
+        distinct() %>%
+        filter(!is.na(error_message_sector) & error_message_sector != "") %>%
+        group_by(sector) %>%
+        summarise(
+          avail  = first(na.omit(num_avail_ind_sector)),
+          total  = first(na.omit(total_ind_per_sector)),
+          reason = first(na.omit(error_message_sector)),
+          .groups = "drop"
+        )
+      if (nrow(err_sectors) > 0) {
+        cat(paste0(
+          "> **Note — sectors excluded or NAs present:** The following sectors had ",
+          "insufficient available indicators (< 50% of required) in at least one area-unit. ",
+          "Means above exclude those NA area-units.\n\n"
+        ))
+        err_sectors %>%
+          mutate(`Available / Required` = paste0(avail, " / ", total)) %>%
+          rename(Sector = sector, Reason = reason) %>%
+          select(Sector, `Available / Required`, Reason) %>%
+          styled_kable() %>% cat()
+        cat("\n\n")
+      }
+    }
 
   } else {
-    # Score: mean sector score across all units
+    # Score: score_index_sector = 25th-pct interpolated score per area×sector.
+    # Display as mean across area-units.
     has_err <- "error_message_sector" %in% names(data)
 
     top_sec <- sec_data %>%
@@ -431,7 +527,7 @@ for (method in selected_methods) {
                               coalesce(error_message, "N/A"),
                               as.character(round(value, 2))))
 
-    y_label <- "Mean score index"
+    y_label <- "Mean score index per sector"
 
     top_sec %>%
       select(Rank, Sector = sector, !!y_label := display) %>%
@@ -443,40 +539,8 @@ for (method in selected_methods) {
       print(bar_chart(chart_data, "sector", "value", fill_col = "sector",
                       title = paste("Sector -", label), y_label = y_label))
     }
+    cat("\n\n")
   }
-
-  # ── Note on sectors with no value (insufficient indicators) ────────────────
-  if ("error_message_sector" %in% names(data)) {
-    err_sectors <- data %>%
-      select(sector, num_avail_ind_sector, total_ind_per_sector, error_message_sector) %>%
-      distinct() %>%
-      filter(!is.na(error_message_sector) & error_message_sector != "") %>%
-      group_by(sector) %>%
-      summarise(
-        avail    = first(na.omit(num_avail_ind_sector)),
-        total    = first(na.omit(total_ind_per_sector)),
-        reason   = first(na.omit(error_message_sector)),
-        .groups  = "drop"
-      )
-
-    if (nrow(err_sectors) > 0) {
-      cat(paste0(
-        "> **Note — sectors excluded from ranking:** The following sectors had no ",
-        "valid score because the number of available indicators was below the ",
-        "required threshold (typically 50% of all indicators for that sector).
-
-"
-      ))
-      err_sectors %>%
-        mutate(`Available / Required` = paste0(avail, " / ", total)) %>%
-        rename(Sector = sector, `Reason` = reason) %>%
-        select(Sector, `Available / Required`, Reason) %>%
-        styled_kable() %>% cat()
-      cat("\n\n")
-    }
-  }
-
-  cat("\n\n")
 }
 ```
 

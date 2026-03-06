@@ -24,7 +24,7 @@ aggregate_data <- function(data, agg_vars, col_so, col_text, col_sm, col_int) {
                      ~ {
                        vals <- na.omit(.)
                        if (length(vals) == 0) return(NA_real_)
-                       if (sum(vals == 1) / length(vals) >= 0.5) 1L else 0L
+                       if (sum(vals == 1) / length(vals) >= 2/3) 1L else 0L
                      })) %>%
     ungroup()
 
@@ -48,9 +48,7 @@ aggregate_data <- function(data, agg_vars, col_so, col_text, col_sm, col_int) {
         vals <- c_across(all_of(binary_cols))
         suffixes <- sub(paste0("^", parent, "\\."), "", binary_cols)
         chosen <- suffixes[!is.na(vals) & vals == 1]
-        if (all(is.na(vals))) NA_character_
-        else if (length(chosen) == 0) "NC"
-        else paste(chosen, collapse = " ")
+        if (length(chosen) == 0) NA_character_ else paste(chosen, collapse = " ")
       }) %>%
       ungroup()
 
